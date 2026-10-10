@@ -1,0 +1,34 @@
+const pluralRules = new Intl.PluralRules("ru-RU");
+
+// Russian nouns have three plural forms: 1 контакт, 2 контакта, 5 контактов
+export function pluralize(count: number, one: string, few: string, many: string) {
+  const form = pluralRules.select(count);
+  const word = form === "one" ? one : form === "few" ? few : many;
+  return `${count} ${word}`;
+}
+
+const dateTimeFormat = new Intl.DateTimeFormat("ru-RU", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+export function formatDateTime(date: Date) {
+  return dateTimeFormat.format(date);
+}
+
+export function initials(name: string) {
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "");
+  return letters.join("") || "?";
+}
+
+// Phone numbers are stored as typed; links need only digits and a leading plus
+export function phoneHref(phone: string) {
+  return `tel:${phone.replace(/[^\d+]/g, "")}`;
+}
