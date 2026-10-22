@@ -1,14 +1,15 @@
 // Fills an empty database with realistic test contacts and notes.
-// Usage: pnpm db:seed
+// Usage: pnpm db:seed (on the server: docker compose -p prod run --rm seed)
 // The script never deletes anything: if contacts already exist, it stops.
 
 import { fakerRU as faker } from "@faker-js/faker";
-import { loadEnvConfig } from "@next/env";
+// .mts and a default import of CommonJS @next/env: works the same under tsx (locally) and plain node (Docker image)
+import nextEnv from "@next/env";
 import { count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { contacts, notes, type NewNote } from "../src/db/schema";
+import { contacts, notes, type NewNote } from "../src/db/schema.ts";
 
 const CONTACT_COUNT = 1000;
 const BATCH_SIZE = 250;
@@ -189,7 +190,7 @@ function buildContact(createdFrom: Date, createdTo: Date) {
 }
 
 async function main() {
-  loadEnvConfig(process.cwd());
+  nextEnv.loadEnvConfig(process.cwd());
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error("DATABASE_URL is not set. Copy .env.example to .env and fill it in.");

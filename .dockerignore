@@ -1,0 +1,12 @@
+# Secrets never get into the image
+.env*
+!.env.example
+
+.git
+.github
+.claude
+.next
+node_modules
+deploy
+Dockerfile
+.dockerignore
