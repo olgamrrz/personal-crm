@@ -1,5 +1,7 @@
 // Form parsing shared by Server Actions. Messages are shown to the user, so they are in Russian.
 
+import { isContactFrequency, type ContactFrequency } from "@/lib/contact-frequency";
+
 export const CONTACT_FIELDS = ["name", "about", "howWeMet", "phone", "email"] as const;
 export type ContactField = (typeof CONTACT_FIELDS)[number];
 
@@ -87,4 +89,17 @@ export function parseNoteForm(formData: FormData): ParseResult<string, string> {
     return { success: false, errors: tooLong(NOTE_MAX_LENGTH) };
   }
   return { success: true, data: body };
+}
+
+// null means "не задано"; anything outside the list is rejected
+export function parseContactFrequency(
+  value: unknown,
+): ParseResult<ContactFrequency | null, string> {
+  if (value === null) {
+    return { success: true, data: null };
+  }
+  if (isContactFrequency(value)) {
+    return { success: true, data: value };
+  }
+  return { success: false, errors: "Такой частоты нет: выберите из списка" };
 }

@@ -3,9 +3,10 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { ContactRows } from "@/components/contact-rows";
+import { OverdueContacts } from "@/components/overdue-contacts";
 import { SearchBox } from "@/components/search-box";
 import { buttonVariants } from "@/components/ui/button";
-import { listContacts, parseContactId } from "@/lib/contacts";
+import { listContacts, listOverdueContacts, parseContactId } from "@/lib/contacts";
 import { pluralize } from "@/lib/format";
 
 export default function ContactsPage({ searchParams }: PageProps<"/">) {
@@ -35,11 +36,15 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
   const addedId = parseContactId(firstValue(params.added));
   const deleted = firstValue(params.deleted) !== "";
 
-  const contacts = await listContacts(query);
+  // Loaded together, so the block and the list appear at once and the search box does not jump.
+  // The search does not filter the block.
+  const [contacts, overdueContacts] = await Promise.all([listContacts(query), listOverdueContacts()]);
   const added = addedId ? contacts.find((contact) => contact.id === addedId) : undefined;
 
   return (
     <div className="space-y-4">
+      <OverdueContacts contacts={overdueContacts} />
+
       <SearchBox defaultValue={query} />
 
       {added && (

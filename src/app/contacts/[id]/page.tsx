@@ -3,14 +3,16 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { addNote, deleteContact } from "@/app/actions";
+import { addNote, deleteContact, markContacted, setContactFrequency } from "@/app/actions";
 import { BackLink } from "@/components/back-link";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { DeleteContactButton } from "@/components/delete-contact-button";
+import { DetailRow } from "@/components/detail-row";
+import { KeepInTouchRows } from "@/components/keep-in-touch-rows";
 import { NoteForm } from "@/components/note-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getContact, listNotes, parseContactId } from "@/lib/contacts";
-import { formatDateTime, phoneHref, pluralize } from "@/lib/format";
+import { getContact, getLastContact, listNotes, parseContactId } from "@/lib/contacts";
+import { formatDateTime, formatLastConversation, phoneHref, pluralize } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Карточка контакта",
@@ -32,11 +34,17 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
   const contactId = parseContactId(id);
   if (!contactId) notFound();
 
-  const [contact, notes] = await Promise.all([getContact(contactId), listNotes(contactId)]);
+  const [contact, notes, lastContact] = await Promise.all([
+    getContact(contactId),
+    listNotes(contactId),
+    getLastContact(contactId),
+  ]);
   if (!contact) notFound();
 
   const addNoteToContact = addNote.bind(null, contact.id);
   const deleteThisContact = deleteContact.bind(null, contact.id);
+  const setThisContactFrequency = setContactFrequency.bind(null, contact.id);
+  const markThisContacted = markContacted.bind(null, contact.id);
 
   return (
     <>
@@ -67,6 +75,12 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
                 </a>
               )}
             </DetailRow>
+            <KeepInTouchRows
+              frequency={contact.contactFrequency}
+              lastConversation={formatLastConversation(lastContact?.day ?? null, lastContact?.isToday ?? false)}
+              setFrequencyAction={setThisContactFrequency}
+              markContactedAction={markThisContacted}
+            />
           </dl>
         </CardContent>
       </Card>
@@ -107,28 +121,6 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
         noteCount={notes.length}
         action={deleteThisContact}
       />
-    </>
-  );
-}
-
-function DetailRow({
-  icon,
-  label,
-  children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <>
-      <dt className="flex items-center gap-2 text-sm text-muted-foreground">
-        {icon}
-        {label}
-      </dt>
-      <dd className="-mt-3 pl-6 sm:mt-0 sm:pl-0">
-        {children || <span className="text-muted-foreground">не указано</span>}
-      </dd>
     </>
   );
 }
