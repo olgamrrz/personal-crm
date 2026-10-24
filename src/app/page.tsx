@@ -33,6 +33,7 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
   const params = await searchParams;
   const query = firstValue(params.q).trim();
   const addedId = parseContactId(firstValue(params.added));
+  const deleted = firstValue(params.deleted) !== "";
 
   const contacts = await listContacts(query);
   const added = addedId ? contacts.find((contact) => contact.id === addedId) : undefined;
@@ -50,6 +51,12 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
           <Link href={`/contacts/${added.id}`} className="font-medium underline underline-offset-4">
             Открыть карточку
           </Link>
+        </div>
+      )}
+
+      {deleted && (
+        <div role="status" className="rounded-lg border bg-background px-4 py-3 text-sm">
+          Контакт удалён.
         </div>
       )}
 

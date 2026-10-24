@@ -3,9 +3,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { addNote } from "@/app/actions";
+import { addNote, deleteContact } from "@/app/actions";
 import { BackLink } from "@/components/back-link";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { DeleteContactButton } from "@/components/delete-contact-button";
 import { NoteForm } from "@/components/note-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getContact, listNotes, parseContactId } from "@/lib/contacts";
@@ -35,6 +36,7 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
   if (!contact) notFound();
 
   const addNoteToContact = addNote.bind(null, contact.id);
+  const deleteThisContact = deleteContact.bind(null, contact.id);
 
   return (
     <>
@@ -99,6 +101,12 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
           )}
         </CardContent>
       </Card>
+
+      <DeleteContactButton
+        contactName={contact.name}
+        noteCount={notes.length}
+        action={deleteThisContact}
+      />
     </>
   );
 }
