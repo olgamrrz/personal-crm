@@ -19,6 +19,21 @@ export function formatDateTime(date: Date) {
   return dateTimeFormat.format(date);
 }
 
+// Calendar days come from the database as YYYY-MM-DD; UTC keeps the day as is
+const dayFormat = new Intl.DateTimeFormat("ru-RU", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+// "сегодня", "19 сентября 2026 г." or "ещё не общались"
+export function formatLastConversation(day: string | null, isToday: boolean) {
+  if (!day) return "ещё не общались";
+  if (isToday) return "сегодня";
+  return dayFormat.format(new Date(`${day}T00:00:00Z`));
+}
+
 export function initials(name: string) {
   const letters = name
     .split(/\s+/)

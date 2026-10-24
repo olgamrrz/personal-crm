@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { contacts, notes } from "@/db/schema";
 import {
   parseContactForm,
+  parseContactFrequency,
   parseNoteForm,
   readContactForm,
   type ContactFormErrors,
@@ -26,6 +27,10 @@ export type NoteFormState = {
 };
 
 export type DeleteContactState = {
+  error?: string;
+};
+
+export type ContactChangeResult = {
   error?: string;
 };
 
@@ -74,6 +79,8 @@ export async function addNote(
 
   await db.insert(notes).values({ contactId, body: result.data });
 
+  // A new note restarts the countdown, so the "Пора связаться" block on the home page changes too
+  revalidatePath("/");
   refresh();
   return {};
 }
@@ -91,4 +98,63 @@ export async function deleteContact(contactId: number): Promise<DeleteContactSta
 
   revalidatePath("/");
   redirect("/?deleted=1");
+}
+
+// Called directly from the select in the contact card; null means "не задано"
+export async function setContactFrequency(
+  contactId: number,
+  frequency: string | null,
+): Promise<ContactChangeResult> {
+  // Arguments come from the client, so they must be checked like any other input
+  if (!Number.isSafeInteger(contactId) || contactId <= 0) {
+    return { error: "Контакт не найден" };
+  }
+
+  const result = parseContactFrequency(frequency);
+  if (!result.success) {
+    return { error: result.errors };
+  }
+
+  // The countdown of a contact without conversations starts when the frequency is chosen,
+  // so picking the same option again must not move it. SET expressions see the old row.
+  const [updated] = await db
+    .update(contacts)
+    .set({
+      contactFrequency: result.data,
+      contactFrequencySetAt:
+        result.data === null
+          ? null
+          : sql`case when ${contacts.contactFrequency} is distinct from ${result.data} then now() else ${contacts.contactFrequencySetAt} end`,
+    })
+    .where(eq(contacts.id, contactId))
+    .returning({ id: contacts.id });
+  if (!updated) {
+    return { error: "Контакт не найден" };
+  }
+
+  revalidatePath("/");
+  refresh();
+  return {};
+}
+
+// "Пообщались": remembers the moment of the conversation without creating a note.
+// Called from the contact card and from the "Пора связаться" block; the user stays where they pressed it.
+export async function markContacted(contactId: number): Promise<ContactChangeResult> {
+  // Arguments come from the client, so they must be checked like any other input
+  if (!Number.isSafeInteger(contactId) || contactId <= 0) {
+    return { error: "Контакт не найден" };
+  }
+
+  const [updated] = await db
+    .update(contacts)
+    .set({ lastContactedAt: sql`now()` })
+    .where(eq(contacts.id, contactId))
+    .returning({ id: contacts.id });
+  if (!updated) {
+    return { error: "Контакт не найден" };
+  }
+
+  revalidatePath("/");
+  refresh();
+  return {};
 }
