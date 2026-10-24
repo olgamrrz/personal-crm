@@ -13,6 +13,7 @@
 
 - Docker Desktop (должен быть запущен)
 - Node.js 20 или новее и pnpm
+- OpenSpec - для работы над фичами (спеки в `openspec/`): `curl -fsSL https://raw.githubusercontent.com/Fission-AI/OpenSpec/main/scripts/binary/install.sh | sh`
 
 ## Первый запуск
 
