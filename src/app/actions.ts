@@ -25,6 +25,10 @@ export type NoteFormState = {
   value?: string;
 };
 
+export type DeleteContactState = {
+  error?: string;
+};
+
 export async function createContact(
   _prevState: ContactFormState,
   formData: FormData,
@@ -72,4 +76,19 @@ export async function addNote(
 
   refresh();
   return {};
+}
+
+// Used with useActionState: the previous state and form data it passes are not needed here
+export async function deleteContact(contactId: number): Promise<DeleteContactState> {
+  // Bound arguments come from the client, so they must be checked like any other input
+  if (!Number.isSafeInteger(contactId) || contactId <= 0) {
+    return { error: "Контакт не найден" };
+  }
+
+  // The contact's notes go with it: notes.contact_id cascades on delete.
+  // A contact already deleted in another tab is gone either way, so this is not an error.
+  await db.delete(contacts).where(eq(contacts.id, contactId));
+
+  revalidatePath("/");
+  redirect("/?deleted=1");
 }
