@@ -40,13 +40,13 @@ export function NoteForm({
         maxLength={NOTE_MAX_LENGTH}
         aria-invalid={state.error ? true : undefined}
         aria-describedby={state.error ? "note-error" : undefined}
-        className="min-h-24 bg-background"
+        className="min-h-24"
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p id="note-error" className="text-sm text-destructive" aria-live="polite">
           {state.error}
         </p>
-        <Button type="submit" size="lg" disabled={pending} className="ml-auto h-10 px-4">
+        <Button type="submit" size="lg" disabled={pending} className="ml-auto">
           {pending ? "Сохраняю…" : "Добавить заметку"}
         </Button>
       </div>

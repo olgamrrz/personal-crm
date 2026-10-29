@@ -52,8 +52,8 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
         <CardHeader className="flex items-center gap-4">
           <ContactAvatar id={contact.id} name={contact.name} className="size-14 text-lg" />
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight break-words">{contact.name}</h1>
-            {contact.about && <p className="text-muted-foreground">{contact.about}</p>}
+            <h1 className="font-serif text-title font-medium break-words sm:text-title-lg">{contact.name}</h1>
+            {contact.about && <p className="mt-1.5 text-base text-muted-foreground">{contact.about}</p>}
           </div>
         </CardHeader>
         <CardContent>
@@ -87,9 +87,9 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">
+          <CardTitle>
             Заметки{" "}
-            <span className="font-normal text-muted-foreground">({notes.length})</span>
+            <span className="font-sans text-base text-muted-foreground">({notes.length})</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -97,7 +97,7 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
           {notes.length > 0 ? (
             <ol className="space-y-3" aria-label={pluralize(notes.length, "заметка", "заметки", "заметок")}>
               {notes.map((note) => (
-                <li key={note.id} className="rounded-lg border bg-muted/30 px-4 py-3">
+                <li key={note.id} className="rounded-field bg-background px-4 py-3">
                   <time
                     dateTime={note.createdAt.toISOString()}
                     className="text-xs text-muted-foreground"
@@ -128,11 +128,11 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
 function ContactSkeleton() {
   return (
     <div className="space-y-5" aria-busy="true" aria-label="Загружаю карточку">
-      <div className="space-y-6 rounded-xl bg-background p-4 ring-1 ring-foreground/10">
+      <div className="space-y-6 rounded-card bg-card p-5.5 sm:rounded-card-lg sm:p-7">
         <div className="flex items-center gap-4">
           <div className="size-14 animate-pulse rounded-full bg-muted" />
           <div className="flex-1 space-y-2">
-            <div className="h-6 w-1/2 animate-pulse rounded bg-muted" />
+            <div className="h-9 w-1/2 animate-pulse rounded bg-muted" />
             <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
           </div>
         </div>
@@ -142,7 +142,7 @@ function ContactSkeleton() {
           <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
         </div>
       </div>
-      <div className="h-48 animate-pulse rounded-xl bg-background ring-1 ring-foreground/10" />
+      <div className="h-48 animate-pulse rounded-card bg-card sm:rounded-card-lg" />
     </div>
   );
 }

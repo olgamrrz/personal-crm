@@ -1,4 +1,4 @@
-import { Plus, SearchX, UserRound } from "lucide-react";
+import { SearchX, UserRound } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -8,15 +8,25 @@ import { SearchBox } from "@/components/search-box";
 import { buttonVariants } from "@/components/ui/button";
 import { listContacts, listOverdueContacts, parseContactId } from "@/lib/contacts";
 import { pluralize } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export default function ContactsPage({ searchParams }: PageProps<"/">) {
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Контакты</h1>
-        <Link href="/contacts/new" className={buttonVariants({ size: "lg", className: "h-10 px-4" })}>
-          <Plus aria-hidden />
+    <div className="space-y-6">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="font-serif text-title font-medium sm:text-title-lg">Контакты</h1>
+        {/* Like the landing's main button: text plus an arrow in a circle; full width on phones */}
+        <Link
+          href="/contacts/new"
+          className={cn(buttonVariants({ size: "lg" }), "h-13 justify-between gap-6 pr-2 pl-6 text-base")}
+        >
           Добавить контакт
+          <span
+            aria-hidden
+            className="flex size-9 items-center justify-center rounded-full bg-cream text-lg text-cobalt"
+          >
+            →
+          </span>
         </Link>
       </div>
       <Suspense fallback={<ContactsSkeleton />}>
@@ -50,7 +60,7 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
       {added && (
         <div
           role="status"
-          className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+          className="rounded-field bg-mist-100 px-4 py-3 text-sm"
         >
           Контакт «{added.name}» добавлен.{" "}
           <Link href={`/contacts/${added.id}`} className="font-medium underline underline-offset-4">
@@ -60,7 +70,7 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
       )}
 
       {deleted && (
-        <div role="status" className="rounded-lg border bg-background px-4 py-3 text-sm">
+        <div role="status" className="rounded-field bg-card px-4 py-3 text-sm">
           Контакт удалён.
         </div>
       )}
@@ -91,8 +101,10 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
 
 function EmptyState({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-background px-6 py-12 text-center text-muted-foreground">
-      {icon}
+    <div className="flex flex-col items-center gap-4 rounded-card bg-card px-6 py-12 text-center text-muted-foreground sm:rounded-card-lg">
+      <span className="flex size-12 items-center justify-center rounded-full bg-mist-100 text-foreground">
+        {icon}
+      </span>
       <p>{children}</p>
     </div>
   );
@@ -101,11 +113,11 @@ function EmptyState({ icon, children }: { icon: React.ReactNode; children: React
 function ContactsSkeleton() {
   return (
     <div className="space-y-4" aria-busy="true" aria-label="Загружаю контакты">
-      <div className="h-10 rounded-lg border bg-background" />
+      <div className="h-11 rounded-full border bg-card" />
       <div className="h-5 w-32 animate-pulse rounded bg-muted" />
-      <div className="divide-y rounded-xl border bg-background">
+      <div className="divide-y overflow-hidden rounded-card bg-card sm:rounded-card-lg">
         {Array.from({ length: 8 }, (_, index) => (
-          <div key={index} className="flex items-center gap-3 px-4 py-3">
+          <div key={index} className="flex items-center gap-3 px-5 py-3">
             <div className="size-10 animate-pulse rounded-full bg-muted" />
             <div className="flex-1 space-y-2">
               <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />

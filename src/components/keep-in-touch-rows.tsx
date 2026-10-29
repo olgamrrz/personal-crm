@@ -66,7 +66,7 @@ export function KeepInTouchRows({
             <SelectTrigger
               aria-labelledby="frequency-label"
               aria-describedby={error ? "frequency-error" : undefined}
-              className="w-full bg-background px-3 text-base data-[size=default]:h-11 sm:w-auto sm:min-w-52 sm:text-sm sm:data-[size=default]:h-9"
+              className="w-full text-base sm:w-auto sm:min-w-52 sm:text-sm sm:data-[size=default]:h-9"
             >
               <SelectValue />
             </SelectTrigger>
@@ -129,7 +129,7 @@ function LastConversation({
           disabled={pending}
           onClick={handleClick}
           aria-describedby={error ? "mark-contacted-error" : undefined}
-          className="h-11 px-3.5 sm:h-9 sm:px-3"
+          className="h-11 px-4 sm:h-9"
         >
           <Check aria-hidden />
           Пообщались

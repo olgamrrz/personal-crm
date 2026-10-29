@@ -81,7 +81,6 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
               maxLength={CONTACT_LIMITS[field.name]}
               aria-invalid={error ? true : undefined}
               aria-describedby={error ? errorId : undefined}
-              className="h-10"
             />
             {error && (
               <p id={errorId} className="text-sm text-destructive">
@@ -93,10 +92,10 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
       })}
 
       <div className="flex flex-wrap items-center gap-3 pt-2">
-        <Button type="submit" size="lg" disabled={pending} className="h-10 px-4">
+        <Button type="submit" size="lg" disabled={pending}>
           {pending ? "Сохраняю…" : "Сохранить контакт"}
         </Button>
-        <Link href="/" className={buttonVariants({ variant: "ghost", size: "lg", className: "h-10 px-4" })}>
+        <Link href="/" className={buttonVariants({ variant: "ghost", size: "lg" })}>
           Отмена
         </Link>
       </div>

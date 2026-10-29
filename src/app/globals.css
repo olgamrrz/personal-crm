@@ -2,26 +2,75 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Never matches: keeps shadcn's dark: styles off, including on systems with a dark theme */
 @custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens: the only place for colors, fonts, type sizes, spacing and radii.
+ * Palette and fonts come from the landing (personal-crm-landing, design/README.md).
+ */
+@theme {
+  /* Drop Tailwind's default palette: only design colors are allowed */
+  --color-*: initial;
+
+  /* Colors from the landing */
+  --color-cobalt: #2a5fe8; /* header, primary button */
+  --color-cobalt-700: #1c3fa8; /* main text, "time to reach out" panel */
+  --color-cobalt-900: #0f2a7a; /* dark avatars, dialog backdrop */
+  --color-cobalt-ink: #1f3a94; /* paragraph text on cream */
+  --color-cobalt-soft: #3e5bb5; /* secondary text */
+  --color-cobalt-line: #4f7bf2; /* dividers on the blue panel */
+  --color-cream: #f4eee1; /* page sheet, text on blue */
+  --color-cream-line: #c8cde6; /* borders and dividers on light backgrounds */
+  --color-mist: #c9d4f7; /* secondary text on blue */
+  --color-mist-100: #e3e8fa; /* hover, highlight, "contact added" message */
+  --color-white: #ffffff; /* cards, fields, popups */
+
+  /* App-only colors: the landing has no destructive actions */
+  --color-danger: #c62f2f; /* delete button, errors on light backgrounds */
+  --color-danger-soft: #ffc9c2; /* errors on the blue panel */
+
+  /* Type scale: size + line height + letter spacing. "-lg" = desktop */
+  --text-logo: 15px;
+  --text-logo--line-height: normal;
+  --text-logo--letter-spacing: -0.01em;
+  --text-logo-lg: 18px;
+  --text-logo-lg--line-height: normal;
+  --text-logo-lg--letter-spacing: -0.01em;
+
+  --text-title: 36px; /* page title, contact name */
+  --text-title--line-height: 1.05;
+  --text-title--letter-spacing: -0.02em;
+  --text-title-lg: 48px;
+  --text-title-lg--line-height: 1.04;
+  --text-title-lg--letter-spacing: -0.02em;
+
+  --text-heading: 24px; /* card, panel and dialog titles */
+  --text-heading--line-height: 1.15;
+  --text-heading--letter-spacing: -0.01em;
+  --text-heading-lg: 28px;
+  --text-heading-lg--line-height: 1.15;
+  --text-heading-lg--letter-spacing: -0.01em;
+
+  /* Spacing */
+  --spacing-gutter: 24px; /* side padding of the header and the sheet */
+
+  /* Radii */
+  --radius-section: 32px; /* top corners of the cream sheet */
+  --radius-section-lg: 48px;
+  --radius-card: 24px; /* white cards, contact list, dialog */
+  --radius-card-lg: 28px;
+  --radius-panel: 24px; /* "time to reach out" panel */
+  --radius-panel-lg: 32px;
+  --radius-field: 16px; /* inputs, select, textarea, messages, notes */
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-heading: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
+  --font-sans: var(--font-manrope), system-ui, sans-serif;
+  --font-serif: var(--font-playfair), Georgia, serif;
+  --font-heading: var(--font-playfair), Georgia, serif;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -47,73 +96,27 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* shadcn roles mapped onto the landing palette */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --background: var(--color-cream);
+  --foreground: var(--color-cobalt-700);
+  --card: var(--color-white);
+  --card-foreground: var(--color-cobalt-700);
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-cobalt-700);
+  --primary: var(--color-cobalt);
+  --primary-foreground: var(--color-cream);
+  --secondary: var(--color-mist-100);
+  --secondary-foreground: var(--color-cobalt-700);
+  --muted: var(--color-mist-100);
+  --muted-foreground: var(--color-cobalt-soft);
+  --accent: var(--color-mist-100);
+  --accent-foreground: var(--color-cobalt-700);
+  --destructive: var(--color-danger);
+  --border: var(--color-cream-line);
+  --input: var(--color-cream-line);
+  --ring: var(--color-cobalt);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {

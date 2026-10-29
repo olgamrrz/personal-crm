@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Manrope, Playfair_Display } from "next/font/google";
 import Link from "next/link";
 
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-sans",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin", "cyrillic"],
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin", "cyrillic"],
+  weight: "500",
 });
 
 export const metadata: Metadata = {
@@ -19,16 +25,21 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ru" className={`${geistSans.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col bg-muted/40">
-        <header className="border-b bg-background">
-          <div className="mx-auto flex h-14 w-full max-w-3xl items-center px-4">
-            <Link href="/" className="text-base font-semibold tracking-tight">
-              Личная CRM
-            </Link>
-          </div>
+    <html lang="ru" className={`${manrope.variable} ${playfair.variable} h-full bg-cobalt antialiased`}>
+      {/* As on the landing: a blue header, then a cream sheet with rounded top corners */}
+      <body className="flex min-h-full flex-col bg-cobalt">
+        <header className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-gutter sm:h-20">
+          <Link
+            href="/"
+            className="rounded-sm text-logo font-bold text-cream focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cream sm:text-logo-lg"
+          >
+            Личная CRM
+          </Link>
+          <span aria-hidden className="size-2.5 rounded-full bg-cream" />
         </header>
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:py-8">{children}</main>
+        <main className="flex-1 rounded-t-section bg-background sm:rounded-t-section-lg">
+          <div className="mx-auto w-full max-w-3xl px-gutter pt-8 pb-12 sm:pt-12 sm:pb-16">{children}</div>
+        </main>
       </body>
     </html>
   );
