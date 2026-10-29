@@ -47,12 +47,16 @@ export function OverdueContacts({ contacts }: { contacts: OverdueContact[] }) {
   if (visible.length === 0) return null;
 
   return (
-    <section aria-labelledby="overdue-title" className="overflow-hidden rounded-xl border bg-background">
-      <div className="flex items-baseline gap-1.5 px-4 pt-3.5 pb-3">
-        <h2 id="overdue-title" className="font-semibold">
+    // A dark blue panel, like the one in the landing's "Solution" section
+    <section
+      aria-labelledby="overdue-title"
+      className="overflow-hidden rounded-panel bg-cobalt-700 pb-2 text-cream sm:rounded-panel-lg"
+    >
+      <div className="flex items-baseline gap-2 px-5 pt-5 pb-3 sm:px-7 sm:pt-6">
+        <h2 id="overdue-title" className="font-serif text-heading font-medium sm:text-heading-lg">
           Пора связаться
         </h2>
-        <span className="text-sm text-muted-foreground">({visible.length})</span>
+        <span className="text-sm text-mist">({visible.length})</span>
       </div>
       <ul>
         {visible.map((contact) => {
@@ -61,17 +65,17 @@ export function OverdueContacts({ contacts }: { contacts: OverdueContact[] }) {
           return (
             <li
               key={contact.id}
-              className="border-t transition-colors has-[a:hover]:bg-muted/60 has-[a:focus-visible]:bg-muted/60"
+              className="border-t border-cobalt-line/50 transition-colors has-[a:hover]:bg-cobalt-900/40 has-[a:focus-visible]:bg-cobalt-900/40"
             >
-              <div className="flex items-center gap-2 pr-4 sm:gap-4">
+              <div className="flex items-center gap-2 pr-5 sm:gap-4 sm:pr-7">
                 <Link
                   href={`/contacts/${contact.id}`}
-                  className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 focus-visible:outline-none"
+                  className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-5 focus-visible:outline-none sm:pl-7"
                 >
                   <ContactAvatar id={contact.id} name={contact.name} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{contact.name}</div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="truncate font-bold">{contact.name}</div>
+                    <div className="text-sm text-mist">
                       {CONTACT_FREQUENCY_LABELS[contact.frequency]}
                     </div>
                     <div className="text-sm font-medium sm:hidden">{overdue}</div>
@@ -87,7 +91,7 @@ export function OverdueContacts({ contacts }: { contacts: OverdueContact[] }) {
                   onClick={() => handleMark(contact.id)}
                   aria-label={`Пообщались: ${contact.name}`}
                   aria-describedby={error ? `overdue-error-${contact.id}` : undefined}
-                  className="h-11 px-3 sm:h-9"
+                  className="h-11 border-cream px-4 text-cream hover:bg-cream/10 hover:text-cream focus-visible:border-cream focus-visible:ring-cream/50 sm:h-9"
                 >
                   <Check aria-hidden className="hidden sm:block" />
                   Пообщались
@@ -97,7 +101,7 @@ export function OverdueContacts({ contacts }: { contacts: OverdueContact[] }) {
                 <p
                   id={`overdue-error-${contact.id}`}
                   role="alert"
-                  className="flex items-start gap-1.5 px-4 pb-3 text-sm text-destructive"
+                  className="flex items-start gap-1.5 px-5 pb-3 text-sm text-danger-soft sm:px-7"
                 >
                   <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
                   {error}

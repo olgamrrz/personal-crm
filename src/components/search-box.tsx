@@ -30,7 +30,7 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
     <Form action="/" role="search" className="relative">
       <Search
         aria-hidden
-        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground"
       />
       <Input
         type="search"
@@ -40,12 +40,12 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
         placeholder="Поиск по имени"
         aria-label="Поиск по имени"
         autoComplete="off"
-        className="h-10 bg-background pr-9 pl-9"
+        className="rounded-full pr-11 pl-11"
       />
       {isPending && (
         <LoaderCircle
           aria-label="Ищу…"
-          className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
+          className="absolute top-1/2 right-4 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
         />
       )}
     </Form>

@@ -16,19 +16,19 @@ export function ContactRows({
   highlightId?: number;
 }) {
   return (
-    <ul className="divide-y overflow-hidden rounded-xl border bg-background">
+    <ul className="divide-y overflow-hidden rounded-card bg-card sm:rounded-card-lg">
       {contacts.map((contact) => (
         <li key={contact.id}>
           <Link
             href={`/contacts/${contact.id}`}
             className={cn(
-              "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none",
-              contact.id === highlightId && "bg-emerald-50 hover:bg-emerald-100/70",
+              "flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none",
+              contact.id === highlightId && "bg-muted hover:bg-muted",
             )}
           >
             <ContactAvatar id={contact.id} name={contact.name} />
             <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">{contact.name}</div>
+              <div className="truncate font-bold">{contact.name}</div>
               {contact.about && (
                 <div className="truncate text-sm text-muted-foreground">{contact.about}</div>
               )}

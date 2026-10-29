@@ -14,8 +14,8 @@ export default function NewContactPage() {
       <BackLink />
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">Новый контакт</CardTitle>
-          <CardDescription>Обязательно только имя, остальное — по желанию.</CardDescription>
+          <CardTitle className="text-title sm:text-title-lg">Новый контакт</CardTitle>
+          <CardDescription className="mt-1.5 text-base">Обязательно только имя, остальное — по желанию.</CardDescription>
         </CardHeader>
         <CardContent>
           <NewContactForm />

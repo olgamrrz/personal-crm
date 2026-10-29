@@ -34,7 +34,7 @@ export function DeleteContactButton({
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger render={<Button variant="destructive" size="lg" className="h-10 px-4" />}>
+      <AlertDialogTrigger render={<Button variant="destructive" size="lg" />}>
         <Trash2 aria-hidden />
         Удалить контакт
       </AlertDialogTrigger>
@@ -54,8 +54,8 @@ export function DeleteContactButton({
         )}
         <form action={formAction}>
           <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction type="submit" variant="destructive" disabled={pending}>
+            <AlertDialogCancel size="lg">Отмена</AlertDialogCancel>
+            <AlertDialogAction type="submit" variant="destructive" size="lg" disabled={pending}>
               {pending ? "Удаляю…" : "Удалить"}
             </AlertDialogAction>
           </AlertDialogFooter>
