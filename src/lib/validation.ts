@@ -15,6 +15,8 @@ export const CONTACT_LIMITS: Record<ContactField, number> = {
 
 export const NOTE_MAX_LENGTH = 5000;
 
+export const GROUP_NAME_MAX_LENGTH = 50;
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type ContactInput = {
@@ -89,6 +91,38 @@ export function parseNoteForm(formData: FormData): ParseResult<string, string> {
     return { success: false, errors: tooLong(NOTE_MAX_LENGTH) };
   }
   return { success: true, data: body };
+}
+
+// Ids arrive as strings (route params, URL parameters, form fields);
+// anything but a positive integer is not a valid id
+export function parseId(value: string): number | null {
+  if (!/^\d{1,9}$/.test(value)) return null;
+  const id = Number(value);
+  return id > 0 ? id : null;
+}
+
+// Groups ticked in the form: every valid `groupIds` value once, in the order they come.
+// Whether a group still exists is the database's business: the ones deleted meanwhile are skipped there.
+export function parseGroupIds(formData: FormData): number[] {
+  const ids = new Set<number>();
+  for (const value of formData.getAll("groupIds")) {
+    const id = typeof value === "string" ? parseId(value) : null;
+    if (id !== null) ids.add(id);
+  }
+  return [...ids];
+}
+
+// The name of a group as typed, without spaces at the ends. Arguments of Server Actions come from
+// the client, so anything but a string counts as empty.
+export function parseGroupName(value: unknown): ParseResult<string, string> {
+  const name = typeof value === "string" ? value.trim() : "";
+  if (!name) {
+    return { success: false, errors: "Введите название группы" };
+  }
+  if (name.length > GROUP_NAME_MAX_LENGTH) {
+    return { success: false, errors: tooLong(GROUP_NAME_MAX_LENGTH) };
+  }
+  return { success: true, data: name };
 }
 
 // null means "не задано"; anything outside the list is rejected

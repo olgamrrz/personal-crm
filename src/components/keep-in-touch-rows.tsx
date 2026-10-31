@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, CircleAlert, Clock, Repeat } from "lucide-react";
+import { Check, Clock, Repeat } from "lucide-react";
 import { useOptimistic, useState, useTransition } from "react";
 
 import type { ContactChangeResult } from "@/app/actions";
 import { DetailRow } from "@/components/detail-row";
+import { ErrorMessage } from "@/components/error-message";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -137,14 +138,5 @@ function LastConversation({
       </div>
       {error && <ErrorMessage id="mark-contacted-error">{error}</ErrorMessage>}
     </div>
-  );
-}
-
-function ErrorMessage({ id, children }: { id: string; children: React.ReactNode }) {
-  return (
-    <p id={id} role="alert" className="flex items-start gap-1.5 text-sm text-destructive">
-      <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-      {children}
-    </p>
   );
 }

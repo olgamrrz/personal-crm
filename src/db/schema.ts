@@ -1,5 +1,14 @@
-import { sql } from "drizzle-orm";
-import { check, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { sql, type SQLWrapper } from "drizzle-orm";
+import {
+  check,
+  index,
+  integer,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 // The Docker image copies this file alone for the seed script, so it imports nothing from src/.
 // Labels for these values live in src/lib/contact-frequency.ts, which is type-checked against them.
@@ -50,7 +59,48 @@ export const notes = pgTable(
   (table) => [index("notes_contact_id_idx").on(table.contactId)],
 );
 
+// Two group names are the same group when this key is equal: case does not matter, and Ё equals Е.
+// Case follows the ICU rules, like the sorting of names. The unique index below and the lookups in
+// src/lib/groups.ts both use this expression, so the database has the last word on duplicates.
+export function groupNameKeySql(name: SQLWrapper) {
+  return sql`lower(translate(${name}, 'Ёё', 'Ее') collate "ru-RU-x-icu")`;
+}
+
+// Groups of contacts: created by the user (family, friends, tennis)
+export const groups = pgTable(
+  "groups",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    // Shown as typed; its length and emptiness are checked in the app code
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex("groups_name_key_idx").on(groupNameKeySql(table.name))],
+);
+
+// Which contact is in which group; a contact is in a group at most once.
+// Deleting a contact or a group removes its links, nothing else.
+export const contactGroups = pgTable(
+  "contact_groups",
+  {
+    contactId: integer("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.contactId, table.groupId] }),
+    index("contact_groups_group_id_idx").on(table.groupId),
+  ],
+);
+
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
 export type Note = typeof notes.$inferSelect;
 export type NewNote = typeof notes.$inferInsert;
+export type Group = typeof groups.$inferSelect;
+export type NewGroup = typeof groups.$inferInsert;

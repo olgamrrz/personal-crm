@@ -1,33 +1,46 @@
-import { SearchX, UserRound } from "lucide-react";
+import { SearchX, UserRound, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { ContactRows } from "@/components/contact-rows";
+import { EmptyState } from "@/components/empty-state";
+import { GroupFilter } from "@/components/group-filter";
 import { OverdueContacts } from "@/components/overdue-contacts";
 import { SearchBox } from "@/components/search-box";
 import { buttonVariants } from "@/components/ui/button";
 import { listContacts, listOverdueContacts, parseContactId } from "@/lib/contacts";
 import { pluralize } from "@/lib/format";
+import { listGroups } from "@/lib/groups";
 import { cn } from "@/lib/utils";
+import { parseId } from "@/lib/validation";
 
 export default function ContactsPage({ searchParams }: PageProps<"/">) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="font-serif text-title font-medium sm:text-title-lg">Контакты</h1>
-        {/* Like the landing's main button: text plus an arrow in a circle; full width on phones */}
-        <Link
-          href="/contacts/new"
-          className={cn(buttonVariants({ size: "lg" }), "h-13 justify-between gap-6 pr-2 pl-6 text-base")}
-        >
-          Добавить контакт
-          <span
-            aria-hidden
-            className="flex size-9 items-center justify-center rounded-full bg-cream text-lg text-cobalt"
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {/* Like the landing's main button: text plus an arrow in a circle; full width on phones */}
+          <Link
+            href="/contacts/new"
+            className={cn(buttonVariants({ size: "lg" }), "h-13 justify-between gap-6 pr-2 pl-6 text-base")}
           >
-            →
-          </span>
-        </Link>
+            Добавить контакт
+            <span
+              aria-hidden
+              className="flex size-9 items-center justify-center rounded-full bg-cream text-lg text-cobalt"
+            >
+              →
+            </span>
+          </Link>
+          {/* The second action: under the main button on phones, next to it on wide screens */}
+          <Link
+            href="/groups"
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-13 px-6 text-base")}
+          >
+            Группы
+          </Link>
+        </div>
       </div>
       <Suspense fallback={<ContactsSkeleton />}>
         <Contacts searchParams={searchParams} />
@@ -46,16 +59,27 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
   const addedId = parseContactId(firstValue(params.added));
   const deleted = firstValue(params.deleted) !== "";
 
+  const groupId = parseId(firstValue(params.group));
+
   // Loaded together, so the block and the list appear at once and the search box does not jump.
-  // The search does not filter the block.
-  const [contacts, overdueContacts] = await Promise.all([listContacts(query), listOverdueContacts()]);
+  // Neither the search nor the group filters the block.
+  const [contacts, overdueContacts, allGroups] = await Promise.all([
+    listContacts(query, groupId ?? undefined),
+    listOverdueContacts(),
+    listGroups(),
+  ]);
+  const groups = allGroups.map(({ id, name }) => ({ id, name }));
+  // A link to a group that has been deleted since shows everybody, and "Все" is chosen
+  const selectedGroup = groups.find((group) => group.id === groupId);
   const added = addedId ? contacts.find((contact) => contact.id === addedId) : undefined;
 
   return (
     <div className="space-y-4">
       <OverdueContacts contacts={overdueContacts} />
 
-      <SearchBox defaultValue={query} />
+      <SearchBox defaultValue={query} group={selectedGroup?.id} />
+
+      <GroupFilter groups={groups} selectedId={selectedGroup?.id} query={query} />
 
       {added && (
         <div
@@ -82,7 +106,15 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
       </p>
 
       {contacts.length > 0 ? (
-        <ContactRows contacts={contacts} highlightId={added?.id} />
+        <ContactRows contacts={contacts} groups={groups} highlightId={added?.id} />
+      ) : selectedGroup && query ? (
+        <EmptyState icon={<SearchX aria-hidden className="size-6" />}>
+          В группе «{selectedGroup.name}» никого не нашли по запросу «{query}»
+        </EmptyState>
+      ) : selectedGroup ? (
+        <EmptyState icon={<UsersRound aria-hidden className="size-6" />}>
+          В группе «{selectedGroup.name}» пока никого. Добавить контакт в группу можно в его карточке
+        </EmptyState>
       ) : query ? (
         <EmptyState icon={<SearchX aria-hidden className="size-6" />}>
           Никого не нашли по запросу «{query}»
@@ -95,17 +127,6 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
           </Link>
         </EmptyState>
       )}
-    </div>
-  );
-}
-
-function EmptyState({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col items-center gap-4 rounded-card bg-card px-6 py-12 text-center text-muted-foreground sm:rounded-card-lg">
-      <span className="flex size-12 items-center justify-center rounded-full bg-mist-100 text-foreground">
-        {icon}
-      </span>
-      <p>{children}</p>
     </div>
   );
 }

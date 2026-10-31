@@ -6,13 +6,15 @@ import { Suspense } from "react";
 import { addNote, deleteContact, markContacted, setContactFrequency } from "@/app/actions";
 import { BackLink } from "@/components/back-link";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { ContactGroupsRow } from "@/components/contact-groups-row";
 import { DeleteContactButton } from "@/components/delete-contact-button";
 import { DetailRow } from "@/components/detail-row";
 import { KeepInTouchRows } from "@/components/keep-in-touch-rows";
 import { NoteForm } from "@/components/note-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getContact, getLastContact, listNotes, parseContactId } from "@/lib/contacts";
+import { getContact, getContactGroupIds, getLastContact, listNotes, parseContactId } from "@/lib/contacts";
 import { formatDateTime, formatLastConversation, phoneHref, pluralize } from "@/lib/format";
+import { listGroups } from "@/lib/groups";
 
 export const metadata: Metadata = {
   title: "Карточка контакта",
@@ -34,10 +36,12 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
   const contactId = parseContactId(id);
   if (!contactId) notFound();
 
-  const [contact, notes, lastContact] = await Promise.all([
+  const [contact, notes, lastContact, groups, groupIds] = await Promise.all([
     getContact(contactId),
     listNotes(contactId),
     getLastContact(contactId),
+    listGroups(),
+    getContactGroupIds(contactId),
   ]);
   if (!contact) notFound();
 
@@ -75,6 +79,11 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
                 </a>
               )}
             </DetailRow>
+            <ContactGroupsRow
+              contactId={contact.id}
+              groups={groups.map(({ id, name }) => ({ id, name }))}
+              selectedIds={groupIds}
+            />
             <KeepInTouchRows
               frequency={contact.contactFrequency}
               lastConversation={formatLastConversation(lastContact?.day ?? null, lastContact?.isToday ?? false)}
