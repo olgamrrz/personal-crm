@@ -11,15 +11,7 @@ const PALETTE = [
   "bg-mist text-cobalt-900",
 ];
 
-export function ContactAvatar({
-  id,
-  name,
-  className,
-}: {
-  id: number;
-  name: string;
-  className?: string;
-}) {
+export function ContactAvatar({ id, name, className }: { id: number; name: string; className?: string }) {
   return (
     <span
       aria-hidden

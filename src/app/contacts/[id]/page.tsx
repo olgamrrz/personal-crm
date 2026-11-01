@@ -86,7 +86,10 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
             />
             <KeepInTouchRows
               frequency={contact.contactFrequency}
-              lastConversation={formatLastConversation(lastContact?.day ?? null, lastContact?.isToday ?? false)}
+              lastConversation={formatLastConversation(
+                lastContact?.day ?? null,
+                lastContact?.isToday ?? false,
+              )}
               setFrequencyAction={setThisContactFrequency}
               markContactedAction={markThisContacted}
             />
@@ -97,8 +100,7 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
       <Card>
         <CardHeader>
           <CardTitle>
-            Заметки{" "}
-            <span className="font-sans text-base text-muted-foreground">({notes.length})</span>
+            Заметки <span className="font-sans text-base text-muted-foreground">({notes.length})</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -107,10 +109,7 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
             <ol className="space-y-3" aria-label={pluralize(notes.length, "заметка", "заметки", "заметок")}>
               {notes.map((note) => (
                 <li key={note.id} className="rounded-field bg-background px-4 py-3">
-                  <time
-                    dateTime={note.createdAt.toISOString()}
-                    className="text-xs text-muted-foreground"
-                  >
+                  <time dateTime={note.createdAt.toISOString()} className="text-xs text-muted-foreground">
                     {formatDateTime(note.createdAt)}
                   </time>
                   <p className="mt-1 whitespace-pre-wrap break-words">{note.body}</p>
@@ -125,11 +124,7 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
         </CardContent>
       </Card>
 
-      <DeleteContactButton
-        contactName={contact.name}
-        noteCount={notes.length}
-        action={deleteThisContact}
-      />
+      <DeleteContactButton contactName={contact.name} noteCount={notes.length} action={deleteThisContact} />
     </>
   );
 }

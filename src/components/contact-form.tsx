@@ -23,7 +23,12 @@ type FieldConfig = {
 const FIELDS: FieldConfig[] = [
   { name: "name", label: "Имя", placeholder: "Например: Анна Смирнова", autoComplete: "off", required: true },
   { name: "about", label: "Кто это", placeholder: "Например: дизайнер, бывшая коллега", autoComplete: "off" },
-  { name: "howWeMet", label: "Откуда знакомы", placeholder: "Например: учились вместе в университете", autoComplete: "off" },
+  {
+    name: "howWeMet",
+    label: "Откуда знакомы",
+    placeholder: "Например: учились вместе в университете",
+    autoComplete: "off",
+  },
   { name: "phone", label: "Телефон", placeholder: "+7 999 123-45-67", type: "tel", autoComplete: "off" },
   { name: "email", label: "Почта", placeholder: "anna@example.com", type: "email", autoComplete: "off" },
 ];

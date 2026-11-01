@@ -30,9 +30,7 @@ export const contacts = pgTable(
     contactFrequencySetAt: timestamp("contact_frequency_set_at", { withTimezone: true }),
     // When "Пообщались" was last pressed; it does not create a note
     lastContactedAt: timestamp("last_contacted_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index("contacts_name_idx").on(table.name),
@@ -52,9 +50,7 @@ export const notes = pgTable(
       .notNull()
       .references(() => contacts.id, { onDelete: "cascade" }),
     body: text("body").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("notes_contact_id_idx").on(table.contactId)],
 );
@@ -73,9 +69,7 @@ export const groups = pgTable(
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
     // Shown as typed; its length and emptiness are checked in the app code
     name: text("name").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex("groups_name_key_idx").on(groupNameKeySql(table.name))],
 );

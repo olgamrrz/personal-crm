@@ -77,9 +77,9 @@ describe("parseGroupIds", () => {
   });
 
   it("drops anything that is not a positive whole number", () => {
-    expect(
-      parseGroupIds(formWith("abc", "0", "-1", "1.5", "", " 3", "3 ", "1e3", "12345678901")),
-    ).toEqual([]);
+    expect(parseGroupIds(formWith("abc", "0", "-1", "1.5", "", " 3", "3 ", "1e3", "12345678901"))).toEqual(
+      [],
+    );
   });
 
   it("keeps the good ids among the bad ones", () => {

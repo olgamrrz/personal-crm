@@ -25,7 +25,9 @@ export type ContactListItem = Awaited<ReturnType<typeof listContacts>>[number];
 
 // Ids of the groups of a contact: the list shows them as labels. The page sends the names of all groups once,
 // so a thousand contacts do not repeat them.
-const contactGroupIds = sql<number[]>`array(select ${contactGroups.groupId} from ${contactGroups} where ${contactGroups.contactId} = ${contacts.id} order by ${contactGroups.groupId})`;
+const contactGroupIds = sql<
+  number[]
+>`array(select ${contactGroups.groupId} from ${contactGroups} where ${contactGroups.contactId} = ${contacts.id} order by ${contactGroups.groupId})`;
 
 // Only the contacts of the group. A group that does not exist (an old link, deleted since) filters nothing,
 // and the same query tells it, so the page needs no second trip to the database.

@@ -45,9 +45,7 @@ export function readContactForm(formData: FormData): ContactFormValues {
   return Object.fromEntries(CONTACT_FIELDS.map((field) => [field, readText(formData, field)]));
 }
 
-export function parseContactForm(
-  values: ContactFormValues,
-): ParseResult<ContactInput, ContactFormErrors> {
+export function parseContactForm(values: ContactFormValues): ParseResult<ContactInput, ContactFormErrors> {
   const errors: ContactFormErrors = {};
 
   for (const field of CONTACT_FIELDS) {
@@ -126,9 +124,7 @@ export function parseGroupName(value: unknown): ParseResult<string, string> {
 }
 
 // null means "не задано"; anything outside the list is rejected
-export function parseContactFrequency(
-  value: unknown,
-): ParseResult<ContactFrequency | null, string> {
+export function parseContactFrequency(value: unknown): ParseResult<ContactFrequency | null, string> {
   if (value === null) {
     return { success: true, data: null };
   }

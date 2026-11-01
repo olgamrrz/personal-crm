@@ -82,10 +82,7 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
       <GroupFilter groups={groups} selectedId={selectedGroup?.id} query={query} />
 
       {added && (
-        <div
-          role="status"
-          className="rounded-field bg-mist-100 px-4 py-3 text-sm"
-        >
+        <div role="status" className="rounded-field bg-mist-100 px-4 py-3 text-sm">
           Контакт «{added.name}» добавлен.{" "}
           <Link href={`/contacts/${added.id}`} className="font-medium underline underline-offset-4">
             Открыть карточку

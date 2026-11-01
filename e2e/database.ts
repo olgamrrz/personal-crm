@@ -26,6 +26,8 @@ export function resetDatabase() {
 
 export function insertContacts(names: string[]) {
   return withDatabase(async (client) => {
-    await drizzle(client).insert(contacts).values(names.map((name) => ({ name })));
+    await drizzle(client)
+      .insert(contacts)
+      .values(names.map((name) => ({ name })));
   });
 }

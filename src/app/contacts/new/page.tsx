@@ -17,7 +17,9 @@ export default function NewContactPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-title sm:text-title-lg">Новый контакт</CardTitle>
-          <CardDescription className="mt-1.5 text-base">Обязательно только имя, остальное — по желанию.</CardDescription>
+          <CardDescription className="mt-1.5 text-base">
+            Обязательно только имя, остальное — по желанию.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Suspense fallback={<FormSkeleton />}>

@@ -43,9 +43,7 @@ export function ContactRows({
             <ContactAvatar id={contact.id} name={contact.name} />
             <div className="min-w-0 flex-1">
               <div className="truncate font-bold">{contact.name}</div>
-              {contact.about && (
-                <div className="truncate text-sm text-muted-foreground">{contact.about}</div>
-              )}
+              {contact.about && <div className="truncate text-sm text-muted-foreground">{contact.about}</div>}
               {contact.groupIds.length > 0 && (
                 // Labels are not links of their own: a tap anywhere in the row opens the card
                 <div className="mt-1.5 flex flex-wrap gap-1">

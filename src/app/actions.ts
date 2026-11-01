@@ -91,10 +91,7 @@ export async function addNote(
     return { error: result.errors, value: typeof value === "string" ? value : "" };
   }
 
-  const [contact] = await db
-    .select({ id: contacts.id })
-    .from(contacts)
-    .where(eq(contacts.id, contactId));
+  const [contact] = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, contactId));
   if (!contact) {
     return { error: "Контакт не найден" };
   }

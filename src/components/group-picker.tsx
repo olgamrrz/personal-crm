@@ -67,9 +67,7 @@ export function GroupPicker({
     const known = new Set(groups.map((group) => group.id));
     const extra = created.filter((group) => !known.has(group.id));
     if (extra.length === 0) return groups;
-    return [...groups, ...extra].sort(
-      (a, b) => collator.compare(a.name, b.name) || a.id - b.id,
-    );
+    return [...groups, ...extra].sort((a, b) => collator.compare(a.name, b.name) || a.id - b.id);
   }, [groups, created]);
 
   const selected = allGroups.filter((group) => selectedIds.includes(group.id));

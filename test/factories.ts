@@ -23,6 +23,8 @@ export async function link(contactId: number, groupId: number) {
   await db.insert(contactGroups).values({ contactId, groupId });
 }
 
-export async function countRows(table: typeof contacts | typeof groups | typeof contactGroups | typeof notes) {
+export async function countRows(
+  table: typeof contacts | typeof groups | typeof contactGroups | typeof notes,
+) {
   return (await db.select().from(table)).length;
 }
