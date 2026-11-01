@@ -49,6 +49,10 @@ jobs:
     name: Deploy to server
     needs: build
     runs-on: ubuntu-latest
+    # Shows the app link under this job on the run page and in the repo's Deployments
+    environment:
+      name: production
+      url: ${{ env.APP_URL }}
     permissions:
       contents: read
       packages: read
