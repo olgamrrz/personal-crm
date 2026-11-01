@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useTransition } from "react";
 
 import { Input } from "@/components/ui/input";
+import { homeUrl } from "@/lib/home-url";
 
 const SEARCH_DELAY_MS = 250;
 
-export function SearchBox({ defaultValue }: { defaultValue: string }) {
+// `group` is the chosen group of the filter: searching must not drop it
+export function SearchBox({ defaultValue, group }: { defaultValue: string; group?: number }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -21,13 +23,15 @@ export function SearchBox({ defaultValue }: { defaultValue: string }) {
     const query = event.target.value.trim();
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      const url = query ? `/?q=${encodeURIComponent(query)}` : "/";
+      const url = homeUrl({ query, group });
       startTransition(() => router.replace(url, { scroll: false }));
     }, SEARCH_DELAY_MS);
   }
 
   return (
     <Form action="/" role="search" className="relative">
+      {/* Enter submits the form as an address: the group goes along with the text */}
+      {group !== undefined && <input type="hidden" name="group" value={group} />}
       <Search
         aria-hidden
         className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground"

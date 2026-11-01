@@ -75,9 +75,7 @@ export function OverdueContacts({ contacts }: { contacts: OverdueContact[] }) {
                   <ContactAvatar id={contact.id} name={contact.name} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-bold">{contact.name}</div>
-                    <div className="text-sm text-mist">
-                      {CONTACT_FREQUENCY_LABELS[contact.frequency]}
-                    </div>
+                    <div className="text-sm text-mist">{CONTACT_FREQUENCY_LABELS[contact.frequency]}</div>
                     <div className="text-sm font-medium sm:hidden">{overdue}</div>
                   </div>
                   <div className="hidden shrink-0 text-sm font-medium whitespace-nowrap sm:block">

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useActionState, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { createContact, type ContactFormState } from "@/app/actions";
+import { ErrorMessage } from "@/components/error-message";
+import { GroupPicker, type PickerGroup } from "@/components/group-picker";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,14 +23,19 @@ type FieldConfig = {
 const FIELDS: FieldConfig[] = [
   { name: "name", label: "Имя", placeholder: "Например: Анна Смирнова", autoComplete: "off", required: true },
   { name: "about", label: "Кто это", placeholder: "Например: дизайнер, бывшая коллега", autoComplete: "off" },
-  { name: "howWeMet", label: "Откуда знакомы", placeholder: "Например: учились вместе в университете", autoComplete: "off" },
+  {
+    name: "howWeMet",
+    label: "Откуда знакомы",
+    placeholder: "Например: учились вместе в университете",
+    autoComplete: "off",
+  },
   { name: "phone", label: "Телефон", placeholder: "+7 999 123-45-67", type: "tel", autoComplete: "off" },
   { name: "email", label: "Почта", placeholder: "anna@example.com", type: "email", autoComplete: "off" },
 ];
 
 const initialState: ContactFormState = {};
 
-export function NewContactForm() {
+export function NewContactForm({ groups }: { groups: PickerGroup[] }) {
   const [formKey, setFormKey] = useState(0);
   const submitted = useRef(false);
 
@@ -43,13 +50,18 @@ export function NewContactForm() {
     };
   }, []);
 
-  return <ContactForm key={formKey} onSubmit={() => (submitted.current = true)} />;
+  return <ContactForm key={formKey} groups={groups} onSubmit={() => (submitted.current = true)} />;
 }
 
-function ContactForm({ onSubmit }: { onSubmit: () => void }) {
+function ContactForm({ groups, onSubmit }: { groups: PickerGroup[]; onSubmit: () => void }) {
   const [state, formAction, pending] = useActionState(createContact, initialState);
   const errors = state.errors ?? {};
   const values = state.values ?? {};
+
+  // The ticked groups live here, not in the form fields, so a failed submit does not clear them;
+  // they go to the server as hidden fields. The server sends them back in state.values.groupIds too.
+  const [groupIds, setGroupIds] = useState<number[]>([]);
+  const [groupsError, setGroupsError] = useState<string>();
 
   // After a failed submit, put the cursor into the first field that needs fixing
   useEffect(() => {
@@ -90,6 +102,22 @@ function ContactForm({ onSubmit }: { onSubmit: () => void }) {
           </div>
         );
       })}
+
+      <div className="space-y-2">
+        <Label htmlFor="groups">Группы</Label>
+        <GroupPicker
+          id="groups"
+          groups={groups}
+          selectedIds={groupIds}
+          onAdd={(groupId) => setGroupIds((ids) => (ids.includes(groupId) ? ids : [...ids, groupId]))}
+          onRemove={(groupId) => setGroupIds((ids) => ids.filter((id) => id !== groupId))}
+          onError={setGroupsError}
+        />
+        {groupsError && <ErrorMessage id="groups-error">{groupsError}</ErrorMessage>}
+        {groupIds.map((groupId) => (
+          <input key={groupId} type="hidden" name="groupIds" value={groupId} />
+        ))}
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <Button type="submit" size="lg" disabled={pending}>

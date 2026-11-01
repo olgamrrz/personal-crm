@@ -6,13 +6,15 @@ import { Suspense } from "react";
 import { addNote, deleteContact, markContacted, setContactFrequency } from "@/app/actions";
 import { BackLink } from "@/components/back-link";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { ContactGroupsRow } from "@/components/contact-groups-row";
 import { DeleteContactButton } from "@/components/delete-contact-button";
 import { DetailRow } from "@/components/detail-row";
 import { KeepInTouchRows } from "@/components/keep-in-touch-rows";
 import { NoteForm } from "@/components/note-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getContact, getLastContact, listNotes, parseContactId } from "@/lib/contacts";
+import { getContact, getContactGroupIds, getLastContact, listNotes, parseContactId } from "@/lib/contacts";
 import { formatDateTime, formatLastConversation, phoneHref, pluralize } from "@/lib/format";
+import { listGroups } from "@/lib/groups";
 
 export const metadata: Metadata = {
   title: "Карточка контакта",
@@ -34,10 +36,12 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
   const contactId = parseContactId(id);
   if (!contactId) notFound();
 
-  const [contact, notes, lastContact] = await Promise.all([
+  const [contact, notes, lastContact, groups, groupIds] = await Promise.all([
     getContact(contactId),
     listNotes(contactId),
     getLastContact(contactId),
+    listGroups(),
+    getContactGroupIds(contactId),
   ]);
   if (!contact) notFound();
 
@@ -75,9 +79,17 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
                 </a>
               )}
             </DetailRow>
+            <ContactGroupsRow
+              contactId={contact.id}
+              groups={groups.map(({ id, name }) => ({ id, name }))}
+              selectedIds={groupIds}
+            />
             <KeepInTouchRows
               frequency={contact.contactFrequency}
-              lastConversation={formatLastConversation(lastContact?.day ?? null, lastContact?.isToday ?? false)}
+              lastConversation={formatLastConversation(
+                lastContact?.day ?? null,
+                lastContact?.isToday ?? false,
+              )}
               setFrequencyAction={setThisContactFrequency}
               markContactedAction={markThisContacted}
             />
@@ -88,8 +100,7 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
       <Card>
         <CardHeader>
           <CardTitle>
-            Заметки{" "}
-            <span className="font-sans text-base text-muted-foreground">({notes.length})</span>
+            Заметки <span className="font-sans text-base text-muted-foreground">({notes.length})</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -98,10 +109,7 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
             <ol className="space-y-3" aria-label={pluralize(notes.length, "заметка", "заметки", "заметок")}>
               {notes.map((note) => (
                 <li key={note.id} className="rounded-field bg-background px-4 py-3">
-                  <time
-                    dateTime={note.createdAt.toISOString()}
-                    className="text-xs text-muted-foreground"
-                  >
+                  <time dateTime={note.createdAt.toISOString()} className="text-xs text-muted-foreground">
                     {formatDateTime(note.createdAt)}
                   </time>
                   <p className="mt-1 whitespace-pre-wrap break-words">{note.body}</p>
@@ -116,11 +124,7 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
         </CardContent>
       </Card>
 
-      <DeleteContactButton
-        contactName={contact.name}
-        noteCount={notes.length}
-        action={deleteThisContact}
-      />
+      <DeleteContactButton contactName={contact.name} noteCount={notes.length} action={deleteThisContact} />
     </>
   );
 }

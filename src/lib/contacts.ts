@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, desc, eq, gt, ilike, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, ilike, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
-import { contacts, notes } from "@/db/schema";
+import { contactGroups, contacts, groups, notes } from "@/db/schema";
 import { CONTACT_FREQUENCIES, type ContactFrequency } from "@/lib/contact-frequency";
+import { parseId, type ContactInput } from "@/lib/validation";
 
 // Sort names the way a Russian reader expects (case-insensitive, Ё next to Е)
 const nameOrder = sql`${contacts.name} collate "ru-RU-x-icu"`;
@@ -22,7 +23,19 @@ function normalizeSearch(value: string) {
 
 export type ContactListItem = Awaited<ReturnType<typeof listContacts>>[number];
 
-export async function listContacts(search = "") {
+// Ids of the groups of a contact: the list shows them as labels. The page sends the names of all groups once,
+// so a thousand contacts do not repeat them.
+const contactGroupIds = sql<
+  number[]
+>`array(select ${contactGroups.groupId} from ${contactGroups} where ${contactGroups.contactId} = ${contacts.id} order by ${contactGroups.groupId})`;
+
+// Only the contacts of the group. A group that does not exist (an old link, deleted since) filters nothing,
+// and the same query tells it, so the page needs no second trip to the database.
+function inGroup(groupId: number) {
+  return sql`(not exists (select 1 from ${groups} where ${groups.id} = ${groupId}) or exists (select 1 from ${contactGroups} where ${contactGroups.contactId} = ${contacts.id} and ${contactGroups.groupId} = ${groupId}))`;
+}
+
+export async function listContacts(search = "", groupId?: number) {
   const query = normalizeSearch(search);
 
   return db
@@ -32,10 +45,48 @@ export async function listContacts(search = "") {
       about: contacts.about,
       phone: contacts.phone,
       email: contacts.email,
+      groupIds: contactGroupIds,
     })
     .from(contacts)
-    .where(query ? ilike(searchableName, `%${escapeLikePattern(query)}%`) : undefined)
+    .where(
+      and(
+        query ? ilike(searchableName, `%${escapeLikePattern(query)}%`) : undefined,
+        groupId === undefined ? undefined : inGroup(groupId),
+      ),
+    )
     .orderBy(nameOrder, contacts.id);
+}
+
+// The contact and its groups are saved together or not at all. `data` and `groupIds` are already checked
+// by the caller. A group deleted in the meantime (another tab) has no row to link to, so it is skipped.
+export async function insertContact(data: ContactInput, groupIds: number[]) {
+  return db.transaction(async (tx) => {
+    const [created] = await tx.insert(contacts).values(data).returning({ id: contacts.id });
+
+    if (groupIds.length > 0) {
+      await tx.insert(contactGroups).select(
+        tx
+          .select({
+            contactId: sql<number>`${created.id}::integer`.as("contact_id"),
+            groupId: sql<number>`${groups.id}`.as("group_id"),
+          })
+          .from(groups)
+          .where(inArray(groups.id, groupIds)),
+      );
+    }
+
+    return created;
+  });
+}
+
+// Ids of the groups the contact is in, for the contact card
+export async function getContactGroupIds(contactId: number) {
+  const rows = await db
+    .select({ groupId: contactGroups.groupId })
+    .from(contactGroups)
+    .where(eq(contactGroups.contactId, contactId))
+    .orderBy(contactGroups.groupId);
+  return rows.map((row) => row.groupId);
 }
 
 export async function getContact(id: number) {
@@ -119,7 +170,5 @@ export async function listNotes(contactId: number) {
 
 // Route params arrive as strings; anything but a positive integer is not a valid id
 export function parseContactId(value: string): number | null {
-  if (!/^\d{1,9}$/.test(value)) return null;
-  const id = Number(value);
-  return id > 0 ? id : null;
+  return parseId(value);
 }
