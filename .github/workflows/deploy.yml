@@ -69,10 +69,16 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
 
-      - name: Upload deploy scripts
-        run: scp -o BatchMode=yes deploy/compose.yaml deploy/deploy.sh "$SERVER:$DEPLOY_DIR/"
+      # The whole deploy/ folder, so a new script there reaches the server by itself.
+      # Files that exist only on the server (.env, current-image, backups/) stay as they are;
+      # --no-overwrite-dir keeps the owner and mode of the server folder, --touch skips file times
+      - name: Upload deploy folder
+        shell: bash
+        run: |
+          tar --create --file=- --directory=deploy . \
+            | ssh -o BatchMode=yes "$SERVER" "tar --extract --file=- --directory=$DEPLOY_DIR --no-overwrite-dir --touch"
 
-      - name: Migrate, start new image, smoke /health
+      - name: Back up database, migrate, start new image, smoke /health
         env:
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
