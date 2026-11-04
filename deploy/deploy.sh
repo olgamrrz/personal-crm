@@ -5,15 +5,15 @@
 #   TAG                   commit SHA the image was built from: ghcr.io/olgamrrz/personal-crm:TAG
 #   --registry-user USER  read a GHCR token from stdin and use it only for this pull
 #
-# Steps: database -> migrations in a one-off container -> new app container -> smoke /health.
-# A failed step stops the script. Nothing is rolled back automatically: to go back,
-# run this script by hand with the tag from previous-image.
+# Steps: database -> backup of the database -> migrations in a one-off container ->
+# new app container -> smoke /health. A failed step stops the script.
+# Nothing is rolled back automatically: to go back, run this script by hand with the tag
+# from previous-image; to bring back the data, restore.sh with a file from backups/.
 set -euo pipefail
 
 cd "$(dirname "$0")"
-
-readonly REPOSITORY=ghcr.io/olgamrrz/personal-crm
-readonly HEALTH_URL=http://127.0.0.1:3000/health
+# shellcheck source=deploy/common.sh
+source ./common.sh
 
 registry_user=""
 if [[ "${1:-}" == "--registry-user" ]]; then
@@ -23,14 +23,8 @@ fi
 tag=${1:?usage: deploy.sh [--registry-user USER] TAG}
 export APP_IMAGE="$REPOSITORY:$tag"
 
-log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
-compose() { docker compose -p prod "$@"; }
-
-if [[ ! -f .env ]]; then
-  log "ERROR: $PWD/.env not found, fill it in from .env.example"
-  exit 1
-fi
-chmod 600 .env
+require_env_file
+take_lock
 
 if ! docker image inspect "$APP_IMAGE" >/dev/null 2>&1; then
   log "Pulling $APP_IMAGE"
@@ -48,30 +42,19 @@ fi
 log "Starting database"
 compose up --detach --wait db
 
+# Named after the version running before this deploy: the data matches its migrations.
+# The file path it prints is in its own log already.
+bash ./backup.sh deploy >/dev/null || die "database backup failed, the new image was not started"
+
 log "Applying migrations"
 if ! compose run --rm migrate; then
-  log "ERROR: migrations failed, the new image was not started"
-  exit 1
+  die "migrations failed, the new image was not started"
 fi
 
 log "Starting $APP_IMAGE"
 compose up --detach app
 
-log "Smoke test: $HEALTH_URL"
-healthy=false
-for _ in $(seq 1 30); do
-  if response=$(curl --fail --silent --max-time 5 "$HEALTH_URL"); then
-    healthy=true
-    break
-  fi
-  sleep 2
-done
-if [[ "$healthy" != true ]]; then
-  log "ERROR: smoke test failed: $HEALTH_URL did not answer 200 within a minute"
-  compose logs --tail 50 app
-  exit 1
-fi
-log "Smoke test passed: $response"
+smoke_test || exit 1
 
 # Keep only the current and the previous app image, so the disk does not fill up
 current=$(cat current-image 2>/dev/null || true)

@@ -1,6 +1,6 @@
 # Production on the server: docker compose project "prod" in /opt/crm/prod.
-# GitHub Actions uploads this file and deploy.sh there; .env next to them holds the settings
-# (see .env.example). APP_IMAGE is set by deploy.sh.
+# GitHub Actions uploads the whole deploy/ folder there; .env next to it holds the settings
+# (see .env.example). APP_IMAGE is set by deploy.sh and restore.sh.
 
 x-logging: &logging
   driver: json-file
