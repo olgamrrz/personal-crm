@@ -1,12 +1,12 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
 import { contacts, notes } from "@/db/schema";
-import { insertContact } from "@/lib/contacts";
+import { insertContact, recordConversation, updateContactFrequency } from "@/lib/contacts";
 import {
   addContactToGroup,
   createGroup as insertGroup,
@@ -136,20 +136,7 @@ export async function setContactFrequency(
     return { error: result.errors };
   }
 
-  // The countdown of a contact without conversations starts when the frequency is chosen,
-  // so picking the same option again must not move it. SET expressions see the old row.
-  const [updated] = await db
-    .update(contacts)
-    .set({
-      contactFrequency: result.data,
-      contactFrequencySetAt:
-        result.data === null
-          ? null
-          : sql`case when ${contacts.contactFrequency} is distinct from ${result.data} then now() else ${contacts.contactFrequencySetAt} end`,
-    })
-    .where(eq(contacts.id, contactId))
-    .returning({ id: contacts.id });
-  if (!updated) {
+  if (!(await updateContactFrequency(contactId, result.data))) {
     return { error: "Контакт не найден" };
   }
 
@@ -166,12 +153,7 @@ export async function markContacted(contactId: number): Promise<ContactChangeRes
     return { error: "Контакт не найден" };
   }
 
-  const [updated] = await db
-    .update(contacts)
-    .set({ lastContactedAt: sql`now()` })
-    .where(eq(contacts.id, contactId))
-    .returning({ id: contacts.id });
-  if (!updated) {
+  if (!(await recordConversation(contactId))) {
     return { error: "Контакт не найден" };
   }
 

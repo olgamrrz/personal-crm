@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { pluralize } from "@/lib/format";
+import { formatLastConversation, pluralize } from "@/lib/format";
 
 describe("pluralize", () => {
   const contacts = (count: number) => pluralize(count, "контакт", "контакта", "контактов");
@@ -23,5 +23,19 @@ describe("pluralize", () => {
     expect(contacts(11)).toBe("11 контактов");
     expect(contacts(12)).toBe("12 контактов");
     expect(contacts(25)).toBe("25 контактов");
+  });
+});
+
+describe("formatLastConversation", () => {
+  it("shows the day of the last conversation as a date", () => {
+    expect(formatLastConversation("2026-09-19", false)).toBe("19 сентября 2026 г.");
+  });
+
+  it("says «сегодня» when it was today", () => {
+    expect(formatLastConversation("2026-09-19", true)).toBe("сегодня");
+  });
+
+  it("says there has been no conversation yet", () => {
+    expect(formatLastConversation(null, false)).toBe("ещё не общались");
   });
 });
