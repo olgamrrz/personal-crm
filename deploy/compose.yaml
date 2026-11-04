@@ -21,6 +21,9 @@ services:
   db:
     image: postgres:18-alpine
     restart: unless-stopped
+    # Error details (DETAIL, HINT, QUERY, CONTEXT) quote the values of the failed row, i.e. personal data;
+    # terse keeps them out of the log. Logged statements show only $1, $2 placeholders.
+    command: ["postgres", "-c", "log_error_verbosity=terse"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set in .env}

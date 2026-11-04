@@ -4,6 +4,8 @@ services:
   db:
     image: postgres:18-alpine
     restart: unless-stopped
+    # Same as on the server (deploy/compose.yaml): error details quote personal data, terse leaves them out
+    command: ["postgres", "-c", "log_error_verbosity=terse"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set in .env}
