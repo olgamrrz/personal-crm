@@ -102,7 +102,14 @@ function dayInTimeZone(timestamp: SQL) {
   return sql`(${timestamp} at time zone ${sql.raw(`'${TIME_ZONE}'`)})::date`;
 }
 
-const today = dayInTimeZone(sql`now()`);
+// The database clock, unless a moment is given: tests pass fixed dates, the app passes none
+function momentOrNow(moment?: Date) {
+  return moment ? sql`${moment.toISOString()}::timestamptz` : sql`now()`;
+}
+
+function todayAt(now?: Date) {
+  return dayInTimeZone(momentOrNow(now));
+}
 
 // The last conversation is the later of the latest note and the last "Пообщались" press.
 // greatest() skips nulls, so it is null only when there has been neither.
@@ -129,12 +136,15 @@ const period = sql`case ${contacts.contactFrequency} ${sql.raw(
 const dueDay = sql`(${dayInTimeZone(countdownStartAt)} + ${period})::date`;
 
 // On the due day the contact is not overdue yet; the day after, it is overdue by 1 day
-const overdueDays = sql<number>`${today} - ${dueDay}`;
+function overdueDaysAt(now?: Date) {
+  return sql<number>`${todayAt(now)} - ${dueDay}`;
+}
 
 export type OverdueContact = Awaited<ReturnType<typeof listOverdueContacts>>[number];
 
 // Contacts it is time to reach out to: most overdue first, then by name
-export async function listOverdueContacts() {
+export async function listOverdueContacts(now?: Date) {
+  const overdueDays = overdueDaysAt(now);
   return db
     .select({
       id: contacts.id,
@@ -148,16 +158,49 @@ export async function listOverdueContacts() {
 }
 
 // The day of the last conversation in Moscow as YYYY-MM-DD, or null if there has been none
-export async function getLastContact(contactId: number) {
+export async function getLastContact(contactId: number, now?: Date) {
   const lastConversationDay = dayInTimeZone(lastConversationAt);
   const [row] = await db
     .select({
       day: sql<string | null>`${lastConversationDay}::text`,
-      isToday: sql<boolean>`coalesce(${lastConversationDay} = ${today}, false)`,
+      isToday: sql<boolean>`coalesce(${lastConversationDay} = ${todayAt(now)}, false)`,
     })
     .from(contacts)
     .where(eq(contacts.id, contactId));
   return row ?? null;
+}
+
+// null means "не задано". The countdown of a contact without conversations starts when the frequency is chosen,
+// so picking the same option again must not move it. SET expressions see the old row.
+// Returns false when there is no such contact.
+export async function updateContactFrequency(
+  contactId: number,
+  frequency: ContactFrequency | null,
+  at?: Date,
+) {
+  const [updated] = await db
+    .update(contacts)
+    .set({
+      contactFrequency: frequency,
+      contactFrequencySetAt:
+        frequency === null
+          ? null
+          : sql`case when ${contacts.contactFrequency} is distinct from ${frequency} then ${momentOrNow(at)} else ${contacts.contactFrequencySetAt} end`,
+    })
+    .where(eq(contacts.id, contactId))
+    .returning({ id: contacts.id });
+  return updated !== undefined;
+}
+
+// "Пообщались": remembers the moment of the conversation without creating a note.
+// Returns false when there is no such contact.
+export async function recordConversation(contactId: number, at?: Date) {
+  const [updated] = await db
+    .update(contacts)
+    .set({ lastContactedAt: momentOrNow(at) })
+    .where(eq(contacts.id, contactId))
+    .returning({ id: contacts.id });
+  return updated !== undefined;
 }
 
 export async function listNotes(contactId: number) {

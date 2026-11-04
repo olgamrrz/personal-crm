@@ -2,10 +2,14 @@
 // cannot hide behind the setup.
 
 import { db } from "@/db";
-import { contactGroups, contacts, groups, notes } from "@/db/schema";
+import { contactGroups, contacts, groups, notes, type NewContact } from "@/db/schema";
 
-export async function makeContact(name = "Иван Петров") {
-  const [contact] = await db.insert(contacts).values({ name }).returning();
+// `fields` sets the rest of the row, e.g. the frequency and the moments of the countdown
+export async function makeContact(name = "Иван Петров", fields: Omit<NewContact, "name"> = {}) {
+  const [contact] = await db
+    .insert(contacts)
+    .values({ ...fields, name })
+    .returning();
   return contact;
 }
 
@@ -14,8 +18,9 @@ export async function makeGroup(name: string) {
   return group;
 }
 
-export async function makeNote(contactId: number, body = "Созвонились") {
-  const [note] = await db.insert(notes).values({ contactId, body }).returning();
+// Without `createdAt` the note is written now
+export async function makeNote(contactId: number, body = "Созвонились", createdAt?: Date) {
+  const [note] = await db.insert(notes).values({ contactId, body, createdAt }).returning();
   return note;
 }
 
