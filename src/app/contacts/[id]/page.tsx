@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getContact, getContactGroupIds, getLastContact, listNotes, parseContactId } from "@/lib/contacts";
 import { formatDateTime, formatLastConversation, phoneHref, pluralize } from "@/lib/format";
 import { listGroups } from "@/lib/groups";
+import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Карточка контакта",
@@ -32,16 +33,17 @@ export default function ContactPage({ params }: PageProps<"/contacts/[id]">) {
 }
 
 async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "params">) {
+  const user = await requireUser();
   const { id } = await params;
   const contactId = parseContactId(id);
   if (!contactId) notFound();
 
   const [contact, notes, lastContact, groups, groupIds] = await Promise.all([
-    getContact(contactId),
-    listNotes(contactId),
-    getLastContact(contactId),
-    listGroups(),
-    getContactGroupIds(contactId),
+    getContact(user.id, contactId),
+    listNotes(user.id, contactId),
+    getLastContact(user.id, contactId),
+    listGroups(user.id),
+    getContactGroupIds(user.id, contactId),
   ]);
   if (!contact) notFound();
 

@@ -11,6 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { listContacts, listOverdueContacts, parseContactId } from "@/lib/contacts";
 import { pluralize } from "@/lib/format";
 import { listGroups } from "@/lib/groups";
+import { requireUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { parseId } from "@/lib/validation";
 
@@ -54,6 +55,7 @@ function firstValue(value: string | string[] | undefined) {
 }
 
 async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
+  const user = await requireUser();
   const params = await searchParams;
   const query = firstValue(params.q).trim();
   const addedId = parseContactId(firstValue(params.added));
@@ -64,9 +66,9 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
   // Loaded together, so the block and the list appear at once and the search box does not jump.
   // Neither the search nor the group filters the block.
   const [contacts, overdueContacts, allGroups] = await Promise.all([
-    listContacts(query, groupId ?? undefined),
-    listOverdueContacts(),
-    listGroups(),
+    listContacts(user.id, query, groupId ?? undefined),
+    listOverdueContacts(user.id),
+    listGroups(user.id),
   ]);
   const groups = allGroups.map(({ id, name }) => ({ id, name }));
   // A link to a group that has been deleted since shows everybody, and "Все" is chosen

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GROUP_NAME_MAX_LENGTH, parseGroupIds, parseGroupName } from "@/lib/validation";
+import { GROUP_NAME_MAX_LENGTH, parseGroupIds, parseGroupName, parseSignInEmail } from "@/lib/validation";
 
 describe("parseGroupName", () => {
   it("limits the name to 50 characters", () => {
@@ -90,5 +90,69 @@ describe("parseGroupIds", () => {
     const formData = formWith("4", new File(["x"], "x.txt"));
     formData.append("name", "7");
     expect(parseGroupIds(formData)).toEqual([4]);
+  });
+});
+
+describe("parseSignInEmail", () => {
+  const INVALID = { success: false, errors: "Проверьте адрес почты" };
+
+  it("removes spaces at both ends and lowers the case", () => {
+    expect(parseSignInEmail("  Anna@Example.COM  ")).toEqual({
+      success: true,
+      data: "anna@example.com",
+    });
+  });
+
+  it("accepts a plain address as it is", () => {
+    expect(parseSignInEmail("anna@example.com")).toEqual({ success: true, data: "anna@example.com" });
+  });
+
+  it("rejects an empty field", () => {
+    expect(parseSignInEmail("")).toEqual(INVALID);
+    expect(parseSignInEmail("   ")).toEqual(INVALID);
+  });
+
+  it("rejects an address that is cut off", () => {
+    expect(parseSignInEmail("anna@")).toEqual(INVALID);
+    expect(parseSignInEmail("anna@example")).toEqual(INVALID);
+    expect(parseSignInEmail("@example.com")).toEqual(INVALID);
+  });
+
+  it("rejects text without an @", () => {
+    expect(parseSignInEmail("anna")).toEqual(INVALID);
+  });
+
+  it("rejects spaces inside the address", () => {
+    expect(parseSignInEmail("an na@example.com")).toEqual(INVALID);
+  });
+
+  it("rejects two @", () => {
+    expect(parseSignInEmail("anna@@example.com")).toEqual(INVALID);
+  });
+
+  it("accepts an address of exactly 254 characters and rejects 255", () => {
+    const domain = "@example.com";
+    const longest = `${"a".repeat(254 - domain.length)}${domain}`;
+    expect(parseSignInEmail(longest)).toEqual({ success: true, data: longest });
+    expect(parseSignInEmail(`a${longest}`)).toEqual(INVALID);
+  });
+
+  it("rejects what Better Auth would refuse later: dots in a row, a one-letter domain end, non-Latin letters", () => {
+    for (const address of [
+      "a..b@example.com",
+      "a.@example.com",
+      "a@b.c",
+      "a@b..com",
+      "a@-b.com",
+      "анна@example.com",
+    ]) {
+      expect(parseSignInEmail(address), address).toEqual(INVALID);
+    }
+  });
+
+  it("rejects a value that is not a string", () => {
+    expect(parseSignInEmail(undefined)).toEqual(INVALID);
+    expect(parseSignInEmail(null)).toEqual(INVALID);
+    expect(parseSignInEmail(42)).toEqual(INVALID);
   });
 });

@@ -2,16 +2,17 @@
 # GitHub Actions uploads the whole deploy/ folder there; .env next to it holds the settings
 # (see .env.example). APP_IMAGE is set by deploy.sh and restore.sh.
 
+x-database-url: &database-url postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+
 x-logging: &logging
   driver: json-file
   options:
     max-size: "10m"
     max-file: "3"
 
+# Every container made from the app image; each service lists its own settings below
 x-app: &app
   image: ${APP_IMAGE:?APP_IMAGE is not set, deploy with deploy.sh}
-  environment:
-    DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
   depends_on:
     db:
       condition: service_healthy
@@ -41,19 +42,37 @@ services:
   app:
     <<: *app
     restart: unless-stopped
+    # A missing line in .env stops the deploy right here, before the backup and the new container
+    environment:
+      DATABASE_URL: *database-url
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is not set in .env}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL is not set in .env}
+      SMTP_HOST: ${SMTP_HOST:?SMTP_HOST is not set in .env}
+      SMTP_PORT: ${SMTP_PORT:?SMTP_PORT is not set in .env}
+      SMTP_SECURE: ${SMTP_SECURE:?SMTP_SECURE is not set in .env}
+      SMTP_USER: ${SMTP_USER:?SMTP_USER is not set in .env}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD is not set in .env}
+      MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is not set in .env}
     ports:
       # Localhost only: nginx on this server proxies app.olgamrzvcrm.ru here
       - "127.0.0.1:3000:3000"
 
   # One-off containers from the app image: docker compose -p prod run --rm migrate|seed
+  # OWNER_EMAIL: whose the data is that exists before sign-in (the migration 0004_owners) and who gets demo data
   migrate:
     <<: *app
     command: ["node", "tools/scripts/migrate.mts"]
+    environment:
+      DATABASE_URL: *database-url
+      OWNER_EMAIL: ${OWNER_EMAIL:?OWNER_EMAIL is not set in .env}
     profiles: [tools]
 
   seed:
     <<: *app
     command: ["node", "tools/scripts/seed.mts"]
+    environment:
+      DATABASE_URL: *database-url
+      OWNER_EMAIL: ${OWNER_EMAIL:?OWNER_EMAIL is not set in .env}
     profiles: [tools]
 
 volumes:

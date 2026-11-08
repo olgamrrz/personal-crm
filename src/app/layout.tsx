@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Manrope, Playfair_Display } from "next/font/google";
 import Link from "next/link";
+import { Suspense } from "react";
+
+import { HeaderDot, UserMenu } from "@/components/user-menu";
 
 import "./globals.css";
 
@@ -35,7 +38,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           >
             Личная CRM
           </Link>
-          <span aria-hidden className="size-2.5 rounded-full bg-cream" />
+          {/* The address and «Выйти» appear once the sign-in is known; until then, and without a sign-in, a dot */}
+          <Suspense fallback={<HeaderDot />}>
+            <UserMenu />
+          </Suspense>
         </header>
         <main className="flex-1 rounded-t-section bg-background sm:rounded-t-section-lg">
           <div className="mx-auto w-full max-w-3xl px-gutter pt-8 pb-12 sm:pt-12 sm:pb-16">{children}</div>

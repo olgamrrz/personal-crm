@@ -26,6 +26,9 @@ export async function prepareTestDatabase(testDatabase: TestDatabase) {
 
   const client = postgres(testDatabase.url, { max: 1, onnotice: () => {} });
   try {
+    // The rows a previous run left behind (the tables are emptied before each test, not after the last one) need
+    // an owner for the migration that adds owners (drizzle/0004_owners.sql). Tests empty the tables anyway.
+    await client`select set_config('app.owner_email', 'tests@example.com', false)`;
     // Both test runners start in the project root, as getTestDatabase() expects too.
     // Not import.meta: Playwright's loader turns this file into CommonJS, where it does not exist.
     await migrate(drizzle(client), { migrationsFolder: path.join(process.cwd(), "drizzle") });

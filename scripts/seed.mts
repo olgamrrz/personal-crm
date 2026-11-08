@@ -1,15 +1,18 @@
-// Fills an empty database with realistic test contacts and notes.
+// Gives the owner (OWNER_EMAIL) realistic test contacts and notes.
 // Usage: pnpm db:seed (on the server: docker compose -p prod run --rm seed)
-// The script never deletes anything: if contacts already exist, it stops.
+// The script never deletes anything: if the owner already has contacts, it stops.
+
+import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
 
 import { fakerRU as faker } from "@faker-js/faker";
 // .mts and a default import of CommonJS @next/env: works the same under tsx (locally) and plain node (Docker image)
 import nextEnv from "@next/env";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { contacts, notes, type NewNote } from "../src/db/schema.ts";
+import { contacts, notes, users, type NewNote } from "../src/db/schema.ts";
 
 const CONTACT_COUNT = 1000;
 const BATCH_SIZE = 250;
@@ -288,38 +291,58 @@ function buildContact(createdFrom: Date, createdTo: Date) {
   };
 }
 
-async function main() {
-  nextEnv.loadEnvConfig(process.cwd());
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL is not set. Copy .env.example to .env and fill it in.");
+// Gives the owner demo contacts and notes. The owner is the user with the address `ownerEmail`: found, or made
+// if that person has not signed in yet (the first sign-in link then opens this account). Does nothing, and
+// changes nothing, if the owner already has contacts. Other people never get demo data.
+export async function seedDemoData({
+  databaseUrl,
+  ownerEmail,
+  contactCount = CONTACT_COUNT,
+}: {
+  databaseUrl: string;
+  ownerEmail: string | undefined;
+  contactCount?: number;
+}) {
+  const email = ownerEmail?.trim().toLowerCase();
+  if (!email) {
+    throw new Error("OWNER_EMAIL is not set. Add it to .env: the demo contacts go to this address.");
   }
 
-  const client = postgres(databaseUrl, { max: 1 });
+  const client = postgres(databaseUrl, { max: 1, onnotice: () => {} });
   const db = drizzle(client);
 
   try {
-    const [{ value: existing }] = await db.select({ value: count() }).from(contacts);
-    if (existing > 0) {
-      console.log(`Database already has ${existing} contacts, seeding skipped. Nothing was changed.`);
-      return;
-    }
+    return await db.transaction(async (tx) => {
+      // Made if missing; a person who signs in at the same moment cannot make a second one (email is unique)
+      await tx
+        .insert(users)
+        .values({ id: randomUUID(), name: "", email, emailVerified: true })
+        .onConflictDoNothing({ target: users.email });
+      const [owner] = await tx.select({ id: users.id }).from(users).where(eq(users.email, email));
 
-    // Fixed seed: every run produces the same people and notes
-    faker.seed(20261010);
-    const createdTo = new Date();
-    const createdFrom = new Date(createdTo);
-    createdFrom.setFullYear(createdFrom.getFullYear() - 3);
+      const [{ value: existing }] = await tx
+        .select({ value: count() })
+        .from(contacts)
+        .where(eq(contacts.ownerId, owner.id));
+      if (existing > 0) {
+        console.log(`${email} already has ${existing} contacts, seeding skipped. Nothing was changed.`);
+        return { seeded: false, contacts: 0, notes: 0 };
+      }
 
-    const people = Array.from({ length: CONTACT_COUNT }, () => buildContact(createdFrom, createdTo));
+      // Fixed seed: every run produces the same people and notes
+      faker.seed(20261010);
+      const createdTo = new Date();
+      const createdFrom = new Date(createdTo);
+      createdFrom.setFullYear(createdFrom.getFullYear() - 3);
 
-    let noteTotal = 0;
-    await db.transaction(async (tx) => {
+      const people = Array.from({ length: contactCount }, () => buildContact(createdFrom, createdTo));
+
+      let noteTotal = 0;
       for (let start = 0; start < people.length; start += BATCH_SIZE) {
         const batch = people.slice(start, start + BATCH_SIZE);
         const inserted = await tx
           .insert(contacts)
-          .values(batch.map((person) => person.contact))
+          .values(batch.map((person) => ({ ...person.contact, ownerId: owner.id })))
           .returning({ id: contacts.id });
 
         const batchNotes: NewNote[] = batch.flatMap((person, index) =>
@@ -330,15 +353,28 @@ async function main() {
         }
         noteTotal += batchNotes.length;
       }
-    });
 
-    console.log(`Seeded ${people.length} contacts and ${noteTotal} notes.`);
+      console.log(`Seeded ${people.length} contacts and ${noteTotal} notes for ${email}.`);
+      return { seeded: true, contacts: people.length, notes: noteTotal };
+    });
   } finally {
     await client.end();
   }
 }
 
-main().catch((error) => {
-  console.error("Seeding failed:", error);
-  process.exitCode = 1;
-});
+// Runs only when started as a script, not when a test imports seedDemoData
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  nextEnv.loadEnvConfig(process.cwd());
+
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is not set. Copy .env.example to .env and fill it in.");
+  }
+
+  try {
+    await seedDemoData({ databaseUrl, ownerEmail: process.env.OWNER_EMAIL });
+  } catch (error) {
+    console.error("Seeding failed:", error);
+    process.exitCode = 1;
+  }
+}

@@ -5,6 +5,7 @@ import { BackLink } from "@/components/back-link";
 import { NewContactForm } from "@/components/contact-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listGroups } from "@/lib/groups";
+import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Новый контакт",
@@ -33,7 +34,8 @@ export default function NewContactPage() {
 
 // The form needs the list of groups for its "Группы" field
 async function FormWithGroups() {
-  const groups = await listGroups();
+  const user = await requireUser();
+  const groups = await listGroups(user.id);
   return <NewContactForm groups={groups.map(({ id, name }) => ({ id, name }))} />;
 }
 

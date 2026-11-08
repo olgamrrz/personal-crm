@@ -1,12 +1,15 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/db";
-import { contacts, notes } from "@/db/schema";
-import { insertContact, recordConversation, updateContactFrequency } from "@/lib/contacts";
+import {
+  addNote as insertNote,
+  deleteContact as removeContact,
+  insertContact,
+  recordConversation,
+  updateContactFrequency,
+} from "@/lib/contacts";
 import {
   addContactToGroup,
   createGroup as insertGroup,
@@ -16,6 +19,7 @@ import {
   type GroupSummary,
   type GroupWriteResult,
 } from "@/lib/groups";
+import { requireUser } from "@/lib/session";
 import {
   parseContactForm,
   parseContactFrequency,
@@ -60,6 +64,7 @@ export async function createContact(
   _prevState: ContactFormState,
   formData: FormData,
 ): Promise<ContactFormState> {
+  const user = await requireUser();
   const values = readContactForm(formData);
   const groupIds = parseGroupIds(formData);
   const result = parseContactForm(values);
@@ -68,7 +73,7 @@ export async function createContact(
   }
 
   // The contact and its groups are saved together; a group deleted in another tab is skipped
-  const created = await insertContact(result.data, groupIds);
+  const created = await insertContact(user.id, result.data, groupIds);
 
   revalidatePath("/");
   revalidatePath("/groups");
@@ -80,6 +85,7 @@ export async function addNote(
   _prevState: NoteFormState,
   formData: FormData,
 ): Promise<NoteFormState> {
+  const user = await requireUser();
   // Bound arguments come from the client, so they must be checked like any other input
   if (!Number.isSafeInteger(contactId) || contactId <= 0) {
     return { error: "Контакт не найден" };
@@ -91,12 +97,10 @@ export async function addNote(
     return { error: result.errors, value: typeof value === "string" ? value : "" };
   }
 
-  const [contact] = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, contactId));
-  if (!contact) {
+  // Somebody else's contact is "not found", the same as one that does not exist
+  if (!(await insertNote(user.id, contactId, result.data))) {
     return { error: "Контакт не найден" };
   }
-
-  await db.insert(notes).values({ contactId, body: result.data });
 
   // A new note restarts the countdown, so the "Пора связаться" block on the home page changes too
   revalidatePath("/");
@@ -106,14 +110,15 @@ export async function addNote(
 
 // Used with useActionState: the previous state and form data it passes are not needed here
 export async function deleteContact(contactId: number): Promise<DeleteContactState> {
+  const user = await requireUser();
   // Bound arguments come from the client, so they must be checked like any other input
   if (!Number.isSafeInteger(contactId) || contactId <= 0) {
     return { error: "Контакт не найден" };
   }
 
   // The contact's notes go with it: notes.contact_id cascades on delete.
-  // A contact already deleted in another tab is gone either way, so this is not an error.
-  await db.delete(contacts).where(eq(contacts.id, contactId));
+  // A contact already deleted in another tab is gone either way, so this is not an error; somebody else's is left alone.
+  await removeContact(user.id, contactId);
 
   // The contact also leaves its groups, so the numbers on the groups page change
   revalidatePath("/");
@@ -126,6 +131,7 @@ export async function setContactFrequency(
   contactId: number,
   frequency: string | null,
 ): Promise<ContactChangeResult> {
+  const user = await requireUser();
   // Arguments come from the client, so they must be checked like any other input
   if (!Number.isSafeInteger(contactId) || contactId <= 0) {
     return { error: "Контакт не найден" };
@@ -136,7 +142,7 @@ export async function setContactFrequency(
     return { error: result.errors };
   }
 
-  if (!(await updateContactFrequency(contactId, result.data))) {
+  if (!(await updateContactFrequency(user.id, contactId, result.data))) {
     return { error: "Контакт не найден" };
   }
 
@@ -148,12 +154,13 @@ export async function setContactFrequency(
 // "Пообщались": remembers the moment of the conversation without creating a note.
 // Called from the contact card and from the "Пора связаться" block; the user stays where they pressed it.
 export async function markContacted(contactId: number): Promise<ContactChangeResult> {
+  const user = await requireUser();
   // Arguments come from the client, so they must be checked like any other input
   if (!Number.isSafeInteger(contactId) || contactId <= 0) {
     return { error: "Контакт не найден" };
   }
 
-  if (!(await recordConversation(contactId))) {
+  if (!(await recordConversation(user.id, contactId))) {
     return { error: "Контакт не найден" };
   }
 
@@ -180,12 +187,13 @@ function refreshGroupPages() {
 
 // Called directly from the "Группы" page and from the group field; the name arrives as typed
 export async function createGroup(name: string): Promise<CreateGroupResult> {
+  const user = await requireUser();
   const parsed = parseGroupName(name);
   if (!parsed.success) {
     return { error: parsed.errors };
   }
 
-  const result = await insertGroup(parsed.data);
+  const result = await insertGroup(user.id, parsed.data);
   if (!result.ok) {
     return { error: groupWriteError(result) };
   }
@@ -195,6 +203,7 @@ export async function createGroup(name: string): Promise<CreateGroupResult> {
 }
 
 export async function renameGroup(groupId: number, name: string): Promise<GroupChangeResult> {
+  const user = await requireUser();
   if (!isRowId(groupId)) {
     return { error: "Группа не найдена" };
   }
@@ -204,7 +213,7 @@ export async function renameGroup(groupId: number, name: string): Promise<GroupC
     return { error: parsed.errors };
   }
 
-  const result = await updateGroup(groupId, parsed.data);
+  const result = await updateGroup(user.id, groupId, parsed.data);
   if (!result.ok) {
     return { error: groupWriteError(result) };
   }
@@ -215,11 +224,12 @@ export async function renameGroup(groupId: number, name: string): Promise<GroupC
 
 // The contacts of the group stay; only their links to it go
 export async function deleteGroup(groupId: number): Promise<GroupChangeResult> {
+  const user = await requireUser();
   if (!isRowId(groupId)) {
     return { error: "Группа не найдена" };
   }
 
-  await removeGroup(groupId);
+  await removeGroup(user.id, groupId);
 
   refreshGroupPages();
   return {};
@@ -232,20 +242,21 @@ export async function setContactGroup(
   groupId: number,
   member: boolean,
 ): Promise<GroupChangeResult> {
+  const user = await requireUser();
   // Arguments come from the client, so they must be checked like any other input
   if (!isRowId(contactId) || !isRowId(groupId) || typeof member !== "boolean") {
     return { error: "Контакт или группа не найдены" };
   }
 
   if (member) {
-    const result = await addContactToGroup(contactId, groupId);
+    const result = await addContactToGroup(user.id, contactId, groupId);
     if (!result.ok) {
       // The group may be gone: the page is refreshed so the list of groups is up to date
       refreshGroupPages();
       return { error: "Контакт или группа не найдены" };
     }
   } else {
-    await removeContactFromGroup(contactId, groupId);
+    await removeContactFromGroup(user.id, contactId, groupId);
   }
 
   refreshGroupPages();

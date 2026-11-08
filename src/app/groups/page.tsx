@@ -7,6 +7,7 @@ import { CreateGroupForm } from "@/components/create-group-form";
 import { EmptyState } from "@/components/empty-state";
 import { GroupRow } from "@/components/group-row";
 import { listGroups } from "@/lib/groups";
+import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Группы",
@@ -26,7 +27,8 @@ export default function GroupsPage() {
 }
 
 async function GroupList() {
-  const groups = await listGroups();
+  const user = await requireUser();
+  const groups = await listGroups(user.id);
 
   if (groups.length === 0) {
     return (

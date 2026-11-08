@@ -29,13 +29,13 @@ const contactGroupIds = sql<
   number[]
 >`array(select ${contactGroups.groupId} from ${contactGroups} where ${contactGroups.contactId} = ${contacts.id} order by ${contactGroups.groupId})`;
 
-// Only the contacts of the group. A group that does not exist (an old link, deleted since) filters nothing,
-// and the same query tells it, so the page needs no second trip to the database.
-function inGroup(groupId: number) {
-  return sql`(not exists (select 1 from ${groups} where ${groups.id} = ${groupId}) or exists (select 1 from ${contactGroups} where ${contactGroups.contactId} = ${contacts.id} and ${contactGroups.groupId} = ${groupId}))`;
+// Only the contacts of the group. A group that does not exist for this owner (an old link, deleted since, or somebody
+// else's) filters nothing, and the same query tells it, so the page needs no second trip to the database.
+function inGroup(ownerId: string, groupId: number) {
+  return sql`(not exists (select 1 from ${groups} where ${groups.id} = ${groupId} and ${groups.ownerId} = ${ownerId}) or exists (select 1 from ${contactGroups} where ${contactGroups.contactId} = ${contacts.id} and ${contactGroups.groupId} = ${groupId}))`;
 }
 
-export async function listContacts(search = "", groupId?: number) {
+export async function listContacts(ownerId: string, search = "", groupId?: number) {
   const query = normalizeSearch(search);
 
   return db
@@ -50,18 +50,23 @@ export async function listContacts(search = "", groupId?: number) {
     .from(contacts)
     .where(
       and(
+        eq(contacts.ownerId, ownerId),
         query ? ilike(searchableName, `%${escapeLikePattern(query)}%`) : undefined,
-        groupId === undefined ? undefined : inGroup(groupId),
+        groupId === undefined ? undefined : inGroup(ownerId, groupId),
       ),
     )
     .orderBy(nameOrder, contacts.id);
 }
 
 // The contact and its groups are saved together or not at all. `data` and `groupIds` are already checked
-// by the caller. A group deleted in the meantime (another tab) has no row to link to, so it is skipped.
-export async function insertContact(data: ContactInput, groupIds: number[]) {
+// by the caller. A group deleted in the meantime (another tab) has no row to link to, so it is skipped,
+// and so is a group of somebody else: only groups of the owner are linked.
+export async function insertContact(ownerId: string, data: ContactInput, groupIds: number[]) {
   return db.transaction(async (tx) => {
-    const [created] = await tx.insert(contacts).values(data).returning({ id: contacts.id });
+    const [created] = await tx
+      .insert(contacts)
+      .values({ ...data, ownerId })
+      .returning({ id: contacts.id });
 
     if (groupIds.length > 0) {
       await tx.insert(contactGroups).select(
@@ -71,7 +76,7 @@ export async function insertContact(data: ContactInput, groupIds: number[]) {
             groupId: sql<number>`${groups.id}`.as("group_id"),
           })
           .from(groups)
-          .where(inArray(groups.id, groupIds)),
+          .where(and(inArray(groups.id, groupIds), eq(groups.ownerId, ownerId))),
       );
     }
 
@@ -79,18 +84,23 @@ export async function insertContact(data: ContactInput, groupIds: number[]) {
   });
 }
 
-// Ids of the groups the contact is in, for the contact card
-export async function getContactGroupIds(contactId: number) {
+// Ids of the groups the contact is in, for the contact card. Somebody else's contact has none.
+export async function getContactGroupIds(ownerId: string, contactId: number) {
   const rows = await db
     .select({ groupId: contactGroups.groupId })
     .from(contactGroups)
-    .where(eq(contactGroups.contactId, contactId))
+    .innerJoin(contacts, eq(contacts.id, contactGroups.contactId))
+    .where(and(eq(contactGroups.contactId, contactId), eq(contacts.ownerId, ownerId)))
     .orderBy(contactGroups.groupId);
   return rows.map((row) => row.groupId);
 }
 
-export async function getContact(id: number) {
-  const [contact] = await db.select().from(contacts).where(eq(contacts.id, id));
+// null for a contact that does not exist or belongs to somebody else: the two look the same
+export async function getContact(ownerId: string, id: number) {
+  const [contact] = await db
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.id, id), eq(contacts.ownerId, ownerId)));
   return contact ?? null;
 }
 
@@ -143,7 +153,7 @@ function overdueDaysAt(now?: Date) {
 export type OverdueContact = Awaited<ReturnType<typeof listOverdueContacts>>[number];
 
 // Contacts it is time to reach out to: most overdue first, then by name
-export async function listOverdueContacts(now?: Date) {
+export async function listOverdueContacts(ownerId: string, now?: Date) {
   const overdueDays = overdueDaysAt(now);
   return db
     .select({
@@ -153,12 +163,12 @@ export async function listOverdueContacts(now?: Date) {
       overdueDays,
     })
     .from(contacts)
-    .where(and(isNotNull(contacts.contactFrequency), gt(overdueDays, 0)))
+    .where(and(eq(contacts.ownerId, ownerId), isNotNull(contacts.contactFrequency), gt(overdueDays, 0)))
     .orderBy(desc(overdueDays), nameOrder, contacts.id);
 }
 
 // The day of the last conversation in Moscow as YYYY-MM-DD, or null if there has been none
-export async function getLastContact(contactId: number, now?: Date) {
+export async function getLastContact(ownerId: string, contactId: number, now?: Date) {
   const lastConversationDay = dayInTimeZone(lastConversationAt);
   const [row] = await db
     .select({
@@ -166,7 +176,7 @@ export async function getLastContact(contactId: number, now?: Date) {
       isToday: sql<boolean>`coalesce(${lastConversationDay} = ${todayAt(now)}, false)`,
     })
     .from(contacts)
-    .where(eq(contacts.id, contactId));
+    .where(and(eq(contacts.id, contactId), eq(contacts.ownerId, ownerId)));
   return row ?? null;
 }
 
@@ -174,6 +184,7 @@ export async function getLastContact(contactId: number, now?: Date) {
 // so picking the same option again must not move it. SET expressions see the old row.
 // Returns false when there is no such contact.
 export async function updateContactFrequency(
+  ownerId: string,
   contactId: number,
   frequency: ContactFrequency | null,
   at?: Date,
@@ -187,28 +198,50 @@ export async function updateContactFrequency(
           ? null
           : sql`case when ${contacts.contactFrequency} is distinct from ${frequency} then ${momentOrNow(at)} else ${contacts.contactFrequencySetAt} end`,
     })
-    .where(eq(contacts.id, contactId))
+    .where(and(eq(contacts.id, contactId), eq(contacts.ownerId, ownerId)))
     .returning({ id: contacts.id });
   return updated !== undefined;
 }
 
 // "Пообщались": remembers the moment of the conversation without creating a note.
 // Returns false when there is no such contact.
-export async function recordConversation(contactId: number, at?: Date) {
+export async function recordConversation(ownerId: string, contactId: number, at?: Date) {
   const [updated] = await db
     .update(contacts)
     .set({ lastContactedAt: momentOrNow(at) })
-    .where(eq(contacts.id, contactId))
+    .where(and(eq(contacts.id, contactId), eq(contacts.ownerId, ownerId)))
     .returning({ id: contacts.id });
   return updated !== undefined;
 }
 
-export async function listNotes(contactId: number) {
-  return db
-    .select()
+// Adds a note to a contact of this owner. Returns false when there is no such contact, and for somebody else's
+// contact too: the answer is the same. `body` is already checked by the caller.
+export async function addNote(ownerId: string, contactId: number, body: string) {
+  // One statement: the note is written only if the contact is the owner's, so there is no gap to slip through
+  const added = await db.execute(
+    sql`insert into notes (contact_id, body)
+        select ${contacts.id}, ${body}::text from ${contacts}
+        where ${contacts.id} = ${contactId} and ${contacts.ownerId} = ${ownerId}
+        returning id`,
+  );
+  return added.length > 0;
+}
+
+// Deletes a contact of this owner together with its notes and its links to groups (they cascade).
+// A contact that is already gone, or is somebody else's, is left alone: that is not an error.
+export async function deleteContact(ownerId: string, contactId: number) {
+  await db.delete(contacts).where(and(eq(contacts.id, contactId), eq(contacts.ownerId, ownerId)));
+}
+
+// The notes belong to the owner of the contact: somebody else's contact has none to show
+export async function listNotes(ownerId: string, contactId: number) {
+  const rows = await db
+    .select({ note: notes })
     .from(notes)
-    .where(eq(notes.contactId, contactId))
+    .innerJoin(contacts, eq(contacts.id, notes.contactId))
+    .where(and(eq(notes.contactId, contactId), eq(contacts.ownerId, ownerId)))
     .orderBy(desc(notes.createdAt), desc(notes.id));
+  return rows.map((row) => row.note);
 }
 
 // Route params arrive as strings; anything but a positive integer is not a valid id

@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 import { defineConfig, devices } from "@playwright/test";
 
 import { E2E_DATABASE_SUFFIX, getTestDatabase } from "./test/database.mts";
@@ -33,6 +35,17 @@ export default defineConfig({
     port: PORT,
     env: {
       DATABASE_URL: getTestDatabase(E2E_DATABASE_SUFFIX).url,
+      // Sign-in links point at this server. The secret is new on every run and is not kept anywhere.
+      BETTER_AUTH_URL: `http://127.0.0.1:${PORT}`,
+      BETTER_AUTH_SECRET: randomBytes(32).toString("hex"),
+      // The letters go to Mailpit (docker compose up -d); tests read them from there. Whatever the working
+      // .env says about mail is overridden here, so a test never writes to a real address.
+      SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: "1025",
+      SMTP_SECURE: "false",
+      SMTP_USER: "",
+      SMTP_PASSWORD: "",
+      MAIL_FROM: "noreply@mail.crm.example.com",
       HOSTNAME: "127.0.0.1",
       PORT: String(PORT),
       NEXT_TELEMETRY_DISABLED: "1",
