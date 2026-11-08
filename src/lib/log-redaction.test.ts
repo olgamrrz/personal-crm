@@ -10,6 +10,8 @@ import { insertContact } from "@/lib/contacts";
 import { installLogRedaction, redactDatabaseError } from "@/lib/log-redaction";
 import type { ContactInput } from "@/lib/validation";
 
+import { makeUser } from "../../test/factories";
+
 const ivan = {
   name: "Иван Петров",
   about: "дизайнер, бывший коллега",
@@ -40,8 +42,9 @@ async function failure(query: PromiseLike<unknown>): Promise<Error & { digest?: 
 }
 
 // A real failed save: the database rejects the row, and Postgres describes the row in the error
-function failedContactSave() {
-  return failure(insertContact({ ...ivan, contactFrequency: "daily" } as ContactInput, []));
+async function failedContactSave() {
+  const owner = await makeUser();
+  return failure(insertContact(owner.id, { ...ivan, contactFrequency: "daily" } as ContactInput, []));
 }
 
 describe("redactDatabaseError", () => {
@@ -59,8 +62,9 @@ describe("redactDatabaseError", () => {
   });
 
   it("removes a group name that Postgres repeats in the details of a duplicate", async () => {
-    await db.insert(groups).values({ name: "Друзья" });
-    const error = await failure(db.insert(groups).values({ name: "друзья" }));
+    const owner = await makeUser();
+    await db.insert(groups).values({ ownerId: owner.id, name: "Друзья" });
+    const error = await failure(db.insert(groups).values({ ownerId: owner.id, name: "друзья" }));
     expect(printed(error)).toContain("друзья");
 
     const text = printed(redactDatabaseError(error));
@@ -74,7 +78,11 @@ describe("redactDatabaseError", () => {
     // Nothing listens on port 1, so the connection is refused
     const client = postgres("postgresql://postgres@127.0.0.1:1/crm", { max: 1, connect_timeout: 2 });
     try {
-      const error = await failure(drizzle(client).insert(contacts).values(ivan));
+      const error = await failure(
+        drizzle(client)
+          .insert(contacts)
+          .values({ ...ivan, ownerId: "owner" }),
+      );
       expect(printed(error)).toContain(ivan.email);
 
       const text = printed(redactDatabaseError(error));

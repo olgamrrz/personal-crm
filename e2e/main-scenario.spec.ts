@@ -6,7 +6,8 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { insertContacts, resetDatabase } from "./database";
+import { insertContacts, insertUser, resetDatabase } from "./database";
+import { signIn, uniqueEmail } from "./mailpit";
 
 const NEW_CONTACT = {
   name: "Мария Соколова",
@@ -21,8 +22,16 @@ const NOTE = "Договорились в субботу вместе посмо
 // People who are already in the CRM, so that the list and the search have something besides the new contact
 const KNOWN_PEOPLE = ["Анна Смирнова", "Борис Иванов"];
 
-test.beforeEach(async () => {
+// Everything here happens after signing in; the second browser signs in under the same address
+let email: string;
+let userId: string;
+
+test.beforeEach(async ({ page }) => {
   await resetDatabase();
+  email = uniqueEmail();
+  // The person exists before the test fills their contacts; signing in opens the same account
+  userId = await insertUser(email);
+  await signIn(page, email);
 });
 
 // Starts on the home page and ends there, with the new contact in the list
@@ -51,7 +60,7 @@ async function addNote(page: Page) {
 
 test("opening the app shows all contacts", async ({ page }) => {
   const everybody = ["Анна Смирнова", "Борис Иванов", "Вера Ким"];
-  await insertContacts(everybody);
+  await insertContacts(userId, everybody);
 
   await page.goto("/");
 
@@ -62,7 +71,7 @@ test("opening the app shows all contacts", async ({ page }) => {
 });
 
 test("a contact added and found by name keeps the note written in its card", async ({ page }) => {
-  await insertContacts(KNOWN_PEOPLE);
+  await insertContacts(userId, KNOWN_PEOPLE);
 
   await test.step("add a contact: it appears in the list", async () => {
     await addContact(page);
@@ -96,7 +105,7 @@ test("a contact added and found by name keeps the note written in its card", asy
 });
 
 test("another browser at the same address sees the same contacts", async ({ page, browser }) => {
-  await insertContacts(KNOWN_PEOPLE);
+  await insertContacts(userId, KNOWN_PEOPLE);
 
   await test.step("the first browser adds a contact and a note", async () => {
     await addContact(page);
@@ -109,6 +118,7 @@ test("another browser at the same address sees the same contacts", async ({ page
   const otherBrowser = await browser.newContext();
   try {
     const other = await otherBrowser.newPage();
+    await signIn(other, email);
 
     await test.step("the other browser sees the same list", async () => {
       await other.goto(new URL("/", cardAddress).href);

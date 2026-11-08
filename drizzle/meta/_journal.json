@@ -22,6 +22,20 @@
       "when": 1793460493675,
       "tag": "0002_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794139002048,
+      "tag": "0003_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794140170367,
+      "tag": "0004_owners",
+      "breakpoints": true
     }
   ]
 }

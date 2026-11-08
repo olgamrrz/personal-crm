@@ -123,6 +123,23 @@ export function parseGroupName(value: unknown): ParseResult<string, string> {
   return { success: true, data: name };
 }
 
+export const SIGN_IN_EMAIL_MAX_LENGTH = 254;
+// The rule of Better Auth itself (the email check of the zod library it uses). Anything it would refuse must be
+// refused here first, with our message, and what we accept it must accept: src/lib/auth.test.ts checks that.
+const SIGN_IN_EMAIL_PATTERN =
+  /^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/;
+export const SIGN_IN_EMAIL_INVALID = "Проверьте адрес почты";
+
+// The email typed on the sign-in page, in the one form used everywhere: no spaces at the ends, lower case.
+// Arguments of Server Actions come from the client, so anything but a string counts as empty.
+export function parseSignInEmail(value: unknown): ParseResult<string, string> {
+  const email = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!email || email.length > SIGN_IN_EMAIL_MAX_LENGTH || !SIGN_IN_EMAIL_PATTERN.test(email)) {
+    return { success: false, errors: SIGN_IN_EMAIL_INVALID };
+  }
+  return { success: true, data: email };
+}
+
 // null means "не задано"; anything outside the list is rejected
 export function parseContactFrequency(value: unknown): ParseResult<ContactFrequency | null, string> {
   if (value === null) {

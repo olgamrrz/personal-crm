@@ -4,7 +4,8 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { insertContact, resetDatabase } from "./database";
+import { insertContact, insertUser, resetDatabase } from "./database";
+import { signIn, uniqueEmail } from "./mailpit";
 
 const SAVE_FAILED = "Не удалось сохранить. Проверьте интернет и попробуйте ещё раз.";
 const MARK_FAILED = "Не удалось отметить. Проверьте интернет и попробуйте ещё раз.";
@@ -25,8 +26,16 @@ function moscowDay(date: Date) {
   }).format(date);
 }
 
-test.beforeEach(async () => {
+// Everything here happens after signing in; a test that needs a second browser signs in there under the same address
+let email: string;
+let userId: string;
+
+test.beforeEach(async ({ page }) => {
   await resetDatabase();
+  email = uniqueEmail();
+  // The person exists before the test fills their contacts; signing in opens the same account
+  userId = await insertUser(email);
+  await signIn(page, email);
 });
 
 function block(page: Page) {
@@ -85,11 +94,11 @@ async function restoreConnectionToServer(page: Page) {
 test("«Пообщались» in the block takes the contact out of it, and the block goes when it is empty", async ({
   page,
 }) => {
-  const ivanId = await insertContact("Иван Петров", { frequency: "month", talkedAt: daysAgo(100) });
-  await insertContact("Анна Смирнова", { frequency: "week", talkedAt: daysAgo(100) });
-  await insertContact("Борис Иванов", { frequency: "year", talkedAt: daysAgo(400) });
-  await insertContact("Вера Ким", { frequency: "month", talkedAt: daysAgo(3) });
-  await insertContact("Глеб Орлов", { talkedAt: daysAgo(400) });
+  const ivanId = await insertContact(userId, "Иван Петров", { frequency: "month", talkedAt: daysAgo(100) });
+  await insertContact(userId, "Анна Смирнова", { frequency: "week", talkedAt: daysAgo(100) });
+  await insertContact(userId, "Борис Иванов", { frequency: "year", talkedAt: daysAgo(400) });
+  await insertContact(userId, "Вера Ким", { frequency: "month", talkedAt: daysAgo(3) });
+  await insertContact(userId, "Глеб Орлов", { talkedAt: daysAgo(400) });
 
   await test.step("the block shows the overdue contacts only, with the number in the title", async () => {
     await page.goto("/");
@@ -141,7 +150,7 @@ test("«Пообщались» in the block takes the contact out of it, and the
 
 test("a row of the block opens the card, and «Пообщались» there makes it today", async ({ page }) => {
   const talkedAt = daysAgo(100);
-  await insertContact("Мария Соколова", { frequency: "month", talkedAt });
+  await insertContact(userId, "Мария Соколова", { frequency: "month", talkedAt });
 
   await test.step("a press on the row, not on the button, opens the card", async () => {
     await page.goto("/");
@@ -204,6 +213,7 @@ test("the frequency is chosen in the card, saved at once and reset", async ({ pa
     const otherBrowser = await browser.newContext();
     try {
       const other = await otherBrowser.newPage();
+      await signIn(other, email);
       await other.goto(page.url());
 
       await expect(frequencySelect(other)).toContainText("раз в месяц");
@@ -224,8 +234,8 @@ test("the frequency is chosen in the card, saved at once and reset", async ({ pa
 });
 
 test("a note or a reset frequency takes the contact out of the block", async ({ page }) => {
-  const annaId = await insertContact("Анна Смирнова", { frequency: "month", talkedAt: daysAgo(100) });
-  const borisId = await insertContact("Борис Иванов", { frequency: "month", talkedAt: daysAgo(100) });
+  const annaId = await insertContact(userId, "Анна Смирнова", { frequency: "month", talkedAt: daysAgo(100) });
+  const borisId = await insertContact(userId, "Борис Иванов", { frequency: "month", talkedAt: daysAgo(100) });
 
   await test.step("both are in the block", async () => {
     await page.goto("/");
@@ -258,9 +268,9 @@ test("a note or a reset frequency takes the contact out of the block", async ({ 
 });
 
 test("the search does not change the block", async ({ page }) => {
-  await insertContact("Анна Смирнова", { frequency: "month", talkedAt: daysAgo(100) });
-  await insertContact("Борис Иванов", { frequency: "week", talkedAt: daysAgo(100) });
-  await insertContact("Вера Ким");
+  await insertContact(userId, "Анна Смирнова", { frequency: "month", talkedAt: daysAgo(100) });
+  await insertContact(userId, "Борис Иванов", { frequency: "week", talkedAt: daysAgo(100) });
+  await insertContact(userId, "Вера Ким");
 
   await page.goto("/");
   await page.getByRole("searchbox", { name: "Поиск по имени" }).fill("Вера");
@@ -276,7 +286,7 @@ test("the search does not change the block", async ({ page }) => {
 });
 
 test("a frequency that could not be saved says so and goes back", async ({ page }) => {
-  const mariaId = await insertContact("Мария Соколова", { frequency: "month" });
+  const mariaId = await insertContact(userId, "Мария Соколова", { frequency: "month" });
   await page.goto(`/contacts/${mariaId}`);
   await expect(frequencySelect(page)).toContainText("раз в месяц");
 
@@ -293,7 +303,7 @@ test("a frequency that could not be saved says so and goes back", async ({ page 
 });
 
 test("a mark in the block that could not be saved keeps the row and says so", async ({ page }) => {
-  await insertContact("Иван Петров", { frequency: "month", talkedAt: daysAgo(100) });
+  await insertContact(userId, "Иван Петров", { frequency: "month", talkedAt: daysAgo(100) });
   await page.goto("/");
 
   await cutConnectionToServer(page);
@@ -311,7 +321,7 @@ test("a mark in the card that could not be saved says so and keeps the last conv
   page,
 }) => {
   const talkedAt = daysAgo(100);
-  const mariaId = await insertContact("Мария Соколова", { frequency: "month", talkedAt });
+  const mariaId = await insertContact(userId, "Мария Соколова", { frequency: "month", talkedAt });
   await page.goto(`/contacts/${mariaId}`);
   await expect(lastConversation(page)).toContainText(moscowDay(talkedAt));
 
