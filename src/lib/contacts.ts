@@ -1,9 +1,10 @@
 import "server-only";
 
-import { and, desc, eq, gt, ilike, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, isNotNull, lte, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import { contactGroups, contacts, groups, notes } from "@/db/schema";
+import type { Birthday } from "@/lib/birthday";
 import { CONTACT_FREQUENCIES, type ContactFrequency } from "@/lib/contact-frequency";
 import { parseId, type ContactInput } from "@/lib/validation";
 
@@ -108,6 +109,11 @@ export async function getContact(ownerId: string, id: number) {
 // The database computes them from its own clock, so the home page and the contact card always agree.
 const TIME_ZONE = "Europe/Moscow";
 
+// The year of that calendar, for the checks in the app code that need "this year" (the year of a birthday)
+export function currentYearInMoscow(now = new Date()) {
+  return Number(new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: TIME_ZONE }).format(now));
+}
+
 function dayInTimeZone(timestamp: SQL) {
   return sql`(${timestamp} at time zone ${sql.raw(`'${TIME_ZONE}'`)})::date`;
 }
@@ -165,6 +171,70 @@ export async function listOverdueContacts(ownerId: string, now?: Date) {
     .from(contacts)
     .where(and(eq(contacts.ownerId, ownerId), isNotNull(contacts.contactFrequency), gt(overdueDays, 0)))
     .orderBy(desc(overdueDays), nameOrder, contacts.id);
+}
+
+// "Скоро день рождения" covers today and the 6 days after it: 7 days in all
+const UPCOMING_BIRTHDAY_DAYS = 7;
+
+// The birthday in the given year, as a date. The day counts from the 1st of the month but never goes past the end of
+// it, so 29 February in a year without it is 28 February (like the month end in "Пора связаться").
+function birthdayIn(year: SQL) {
+  const monthStart = sql`make_date(${year}, ${contacts.birthdayMonth}::int, 1)`;
+  return sql`least(${monthStart} + (${contacts.birthdayDay}::int - 1), (${monthStart} + interval '1 month')::date - 1)`;
+}
+
+// The nearest birthday that is not before today: this year's, or else next year's. That also handles the end of the year.
+function nextBirthdayAt(now?: Date) {
+  const thisYear = sql`extract(year from ${todayAt(now)})::int`;
+  return sql`case when ${birthdayIn(thisYear)} >= ${todayAt(now)} then ${birthdayIn(thisYear)} else ${birthdayIn(sql`${thisYear} + 1`)} end`;
+}
+
+export type UpcomingBirthday = Awaited<ReturnType<typeof listUpcomingBirthdays>>[number];
+
+// Contacts whose birthday is today or in the next 6 days, the nearest first, then by name.
+// `turning` is the age they turn, or null when the year is not known or they are born this year.
+// The database counts the days, so "today" is the same Moscow day as in the other blocks.
+export async function listUpcomingBirthdays(ownerId: string, now?: Date) {
+  const nextBirthday = nextBirthdayAt(now);
+  const daysUntil = sql<number>`${nextBirthday} - ${todayAt(now)}`;
+  const age = sql`extract(year from ${nextBirthday})::int - ${contacts.birthdayYear}::int`;
+
+  return db
+    .select({
+      id: contacts.id,
+      name: contacts.name,
+      day: sql<number>`${contacts.birthdayDay}::int`,
+      month: sql<number>`${contacts.birthdayMonth}::int`,
+      daysUntil,
+      turning: sql<
+        number | null
+      >`case when ${contacts.birthdayYear} is not null and ${age} >= 1 then ${age} end`,
+    })
+    .from(contacts)
+    .where(
+      and(
+        eq(contacts.ownerId, ownerId),
+        // The day and the month go together (a constraint of the table), so one of them is enough
+        isNotNull(contacts.birthdayDay),
+        lte(daysUntil, UPCOMING_BIRTHDAY_DAYS - 1),
+      ),
+    )
+    .orderBy(asc(daysUntil), nameOrder, contacts.id);
+}
+
+// null removes the date (all three fields become empty). Returns false when there is no such contact.
+// `birthday` is already checked by the caller.
+export async function updateContactBirthday(ownerId: string, contactId: number, birthday: Birthday | null) {
+  const [updated] = await db
+    .update(contacts)
+    .set({
+      birthdayDay: birthday?.day ?? null,
+      birthdayMonth: birthday?.month ?? null,
+      birthdayYear: birthday?.year ?? null,
+    })
+    .where(and(eq(contacts.id, contactId), eq(contacts.ownerId, ownerId)))
+    .returning({ id: contacts.id });
+  return updated !== undefined;
 }
 
 // The day of the last conversation in Moscow as YYYY-MM-DD, or null if there has been none

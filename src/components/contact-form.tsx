@@ -31,6 +31,13 @@ const FIELDS: FieldConfig[] = [
   },
   { name: "phone", label: "Телефон", placeholder: "+7 999 123-45-67", type: "tel", autoComplete: "off" },
   { name: "email", label: "Почта", placeholder: "anna@example.com", type: "email", autoComplete: "off" },
+  // Plain text, not a numeric keyboard: the phone's number pad has no dot, and the date is typed with dots
+  {
+    name: "birthday",
+    label: "День рождения",
+    placeholder: "Например: 14.03 или 14.03.1990",
+    autoComplete: "off",
+  },
 ];
 
 const initialState: ContactFormState = {};

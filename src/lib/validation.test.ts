@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { GROUP_NAME_MAX_LENGTH, parseGroupIds, parseGroupName, parseSignInEmail } from "@/lib/validation";
+import {
+  GROUP_NAME_MAX_LENGTH,
+  parseContactForm,
+  parseGroupIds,
+  parseGroupName,
+  parseSignInEmail,
+  readContactForm,
+} from "@/lib/validation";
 
 describe("parseGroupName", () => {
   it("limits the name to 50 characters", () => {
@@ -154,5 +161,91 @@ describe("parseSignInEmail", () => {
     expect(parseSignInEmail(undefined)).toEqual(INVALID);
     expect(parseSignInEmail(null)).toEqual(INVALID);
     expect(parseSignInEmail(42)).toEqual(INVALID);
+  });
+});
+
+describe("the birthday in the contact form", () => {
+  const anna = { name: "Анна", about: "", howWeMet: "", phone: "", email: "" };
+  const NO_BIRTHDAY = { birthdayDay: null, birthdayMonth: null, birthdayYear: null };
+
+  it("reads the field, with spaces at the ends removed", () => {
+    const formData = new FormData();
+    formData.set("name", "Анна");
+    formData.set("birthday", "  14.03.1990 ");
+
+    expect(readContactForm(formData)).toMatchObject({ name: "Анна", birthday: "14.03.1990" });
+  });
+
+  it("reads a missing field as empty", () => {
+    expect(readContactForm(new FormData())).toMatchObject({ birthday: "" });
+  });
+
+  it("gives no date for an empty field", () => {
+    expect(parseContactForm({ ...anna, birthday: "" }, 2026)).toMatchObject({
+      success: true,
+      data: { name: "Анна", ...NO_BIRTHDAY },
+    });
+  });
+
+  it("gives no date for a form without the field", () => {
+    expect(parseContactForm(anna, 2026)).toMatchObject({ success: true, data: NO_BIRTHDAY });
+  });
+
+  it("puts a date with a year into the data", () => {
+    expect(parseContactForm({ ...anna, birthday: "14.03.1990" }, 2026)).toMatchObject({
+      success: true,
+      data: { birthdayDay: 14, birthdayMonth: 3, birthdayYear: 1990 },
+    });
+  });
+
+  it("puts a date without a year into the data", () => {
+    expect(parseContactForm({ ...anna, birthday: "5.3" }, 2026)).toMatchObject({
+      success: true,
+      data: { birthdayDay: 5, birthdayMonth: 3, birthdayYear: null },
+    });
+  });
+
+  it("gives an error under the field for a wrong date, and no data", () => {
+    expect(parseContactForm({ ...anna, birthday: "31.04" }, 2026)).toEqual({
+      success: false,
+      errors: { birthday: "Такой даты нет" },
+    });
+    expect(parseContactForm({ ...anna, birthday: "завтра" }, 2026)).toEqual({
+      success: false,
+      errors: { birthday: "Введите дату так: 14.03 или 14.03.1990" },
+    });
+  });
+
+  it("counts the year against the year that is given", () => {
+    expect(parseContactForm({ ...anna, birthday: "14.03.2027" }, 2026)).toEqual({
+      success: false,
+      errors: { birthday: "Год не может быть в будущем" },
+    });
+    expect(parseContactForm({ ...anna, birthday: "14.03.2027" }, 2027)).toMatchObject({ success: true });
+  });
+
+  it("does not hide the errors of the other fields", () => {
+    expect(parseContactForm({ ...anna, name: "", email: "не почта", birthday: "31.04" }, 2026)).toEqual({
+      success: false,
+      errors: {
+        name: "Укажите имя",
+        email: "Похоже, в адресе почты ошибка. Пример: anna@example.com",
+        birthday: "Такой даты нет",
+      },
+    });
+  });
+
+  it("does not make a good date fail because of another field", () => {
+    expect(parseContactForm({ ...anna, name: "", birthday: "14.03" }, 2026)).toEqual({
+      success: false,
+      errors: { name: "Укажите имя" },
+    });
+  });
+
+  it("gives the format error, not a length error, for a long text", () => {
+    expect(parseContactForm({ ...anna, birthday: "1".repeat(300) }, 2026)).toEqual({
+      success: false,
+      errors: { birthday: "Введите дату так: 14.03 или 14.03.1990" },
+    });
   });
 });

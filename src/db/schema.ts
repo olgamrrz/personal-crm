@@ -6,6 +6,7 @@ import {
   integer,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -30,6 +31,12 @@ export const contacts = pgTable(
     howWeMet: text("how_we_met"),
     phone: text("phone"),
     email: text("email"),
+    // Birthday: the day and the month go together, the year is optional. All three are null when there is no date.
+    // That the year is not in the future and that 29 February has a leap year are checked in the app code:
+    // a constraint cannot know "today in Moscow", and one that depends on time breaks a restore from a backup.
+    birthdayDay: smallint("birthday_day"),
+    birthdayMonth: smallint("birthday_month"),
+    birthdayYear: smallint("birthday_year"),
     // How often to keep in touch; null means "not set"
     contactFrequency: text("contact_frequency", { enum: CONTACT_FREQUENCY_VALUES }),
     // When the frequency was last chosen or changed; null while it is not set
@@ -44,6 +51,16 @@ export const contacts = pgTable(
     check(
       "contacts_contact_frequency_check",
       sql`${table.contactFrequency} in (${sql.raw(CONTACT_FREQUENCY_VALUES.map((value) => `'${value}'`).join(", "))})`,
+    ),
+    // The day and the month are both empty or both set; the day exists in the month (29 February is allowed)
+    check(
+      "contacts_birthday_check",
+      sql`(${table.birthdayDay} is null and ${table.birthdayMonth} is null) or (${table.birthdayDay} is not null and ${table.birthdayMonth} is not null and ${table.birthdayMonth} between 1 and 12 and ${table.birthdayDay} between 1 and (case ${table.birthdayMonth} when 2 then 29 when 4 then 30 when 6 then 30 when 9 then 30 when 11 then 30 else 31 end))`,
+    ),
+    // A year without a day and a month means nothing
+    check(
+      "contacts_birthday_year_check",
+      sql`${table.birthdayYear} is null or ${table.birthdayDay} is not null`,
     ),
   ],
 );

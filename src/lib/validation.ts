@@ -1,8 +1,9 @@
 // Form parsing shared by Server Actions. Messages are shown to the user, so they are in Russian.
 
+import { parseBirthday } from "@/lib/birthday";
 import { isContactFrequency, type ContactFrequency } from "@/lib/contact-frequency";
 
-export const CONTACT_FIELDS = ["name", "about", "howWeMet", "phone", "email"] as const;
+export const CONTACT_FIELDS = ["name", "about", "howWeMet", "phone", "email", "birthday"] as const;
 export type ContactField = (typeof CONTACT_FIELDS)[number];
 
 export const CONTACT_LIMITS: Record<ContactField, number> = {
@@ -11,6 +12,8 @@ export const CONTACT_LIMITS: Record<ContactField, number> = {
   howWeMet: 500,
   phone: 50,
   email: 254,
+  // Only the size of the input: a text that is too long for a date gets the message about the format
+  birthday: 10,
 };
 
 export const NOTE_MAX_LENGTH = 5000;
@@ -25,6 +28,10 @@ export type ContactInput = {
   howWeMet: string | null;
   phone: string | null;
   email: string | null;
+  // The three go together: all empty, or the day and the month (and maybe the year)
+  birthdayDay: number | null;
+  birthdayMonth: number | null;
+  birthdayYear: number | null;
 };
 
 export type ContactFormValues = Partial<Record<ContactField, string>>;
@@ -45,11 +52,15 @@ export function readContactForm(formData: FormData): ContactFormValues {
   return Object.fromEntries(CONTACT_FIELDS.map((field) => [field, readText(formData, field)]));
 }
 
-export function parseContactForm(values: ContactFormValues): ParseResult<ContactInput, ContactFormErrors> {
+// `currentYear` is the year in Moscow: the caller works it out, so tests can choose their own
+export function parseContactForm(
+  values: ContactFormValues,
+  currentYear: number,
+): ParseResult<ContactInput, ContactFormErrors> {
   const errors: ContactFormErrors = {};
 
   for (const field of CONTACT_FIELDS) {
-    if ((values[field] ?? "").length > CONTACT_LIMITS[field]) {
+    if (field !== "birthday" && (values[field] ?? "").length > CONTACT_LIMITS[field]) {
       errors[field] = tooLong(CONTACT_LIMITS[field]);
     }
   }
@@ -64,7 +75,12 @@ export function parseContactForm(values: ContactFormValues): ParseResult<Contact
     errors.email = "Похоже, в адресе почты ошибка. Пример: anna@example.com";
   }
 
-  if (Object.keys(errors).length > 0) {
+  const birthday = parseBirthday(values.birthday ?? "", currentYear);
+  if (!birthday.success) {
+    errors.birthday = birthday.errors;
+  }
+
+  if (!birthday.success || Object.keys(errors).length > 0) {
     return { success: false, errors };
   }
 
@@ -76,6 +92,9 @@ export function parseContactForm(values: ContactFormValues): ParseResult<Contact
       howWeMet: values.howWeMet || null,
       phone: values.phone || null,
       email: email || null,
+      birthdayDay: birthday.data?.day ?? null,
+      birthdayMonth: birthday.data?.month ?? null,
+      birthdayYear: birthday.data?.year ?? null,
     },
   };
 }

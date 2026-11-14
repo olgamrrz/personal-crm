@@ -3,11 +3,14 @@
 import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { formatBirthday, parseBirthday } from "@/lib/birthday";
 import {
   addNote as insertNote,
+  currentYearInMoscow,
   deleteContact as removeContact,
   insertContact,
   recordConversation,
+  updateContactBirthday,
   updateContactFrequency,
 } from "@/lib/contacts";
 import {
@@ -51,6 +54,12 @@ export type ContactChangeResult = {
   error?: string;
 };
 
+export type BirthdayChangeResult = {
+  error?: string;
+  // On success: the date as it is now saved ("05.03"), or an empty text when the date was removed
+  value?: string;
+};
+
 export type GroupChangeResult = {
   error?: string;
 };
@@ -67,7 +76,7 @@ export async function createContact(
   const user = await requireUser();
   const values = readContactForm(formData);
   const groupIds = parseGroupIds(formData);
-  const result = parseContactForm(values);
+  const result = parseContactForm(values, currentYearInMoscow());
   if (!result.success) {
     return { errors: result.errors, values: { ...values, groupIds } };
   }
@@ -149,6 +158,31 @@ export async function setContactFrequency(
   revalidatePath("/");
   refresh();
   return {};
+}
+
+// Called directly from the "День рождения" field of the contact card; an empty text removes the date.
+// The value comes from the client, so anything but a string counts as empty.
+export async function setContactBirthday(contactId: number, value: unknown): Promise<BirthdayChangeResult> {
+  const user = await requireUser();
+  // Arguments come from the client, so they must be checked like any other input
+  if (!Number.isSafeInteger(contactId) || contactId <= 0) {
+    return { error: "Контакт не найден" };
+  }
+
+  const result = parseBirthday(typeof value === "string" ? value : "", currentYearInMoscow());
+  if (!result.success) {
+    return { error: result.errors };
+  }
+
+  // Somebody else's contact is "not found", the same as one that does not exist
+  if (!(await updateContactBirthday(user.id, contactId, result.data))) {
+    return { error: "Контакт не найден" };
+  }
+
+  // The "Скоро день рождения" block on the home page may change
+  revalidatePath("/");
+  refresh();
+  return { value: result.data ? formatBirthday(result.data) : "" };
 }
 
 // "Пообщались": remembers the moment of the conversation without creating a note.
