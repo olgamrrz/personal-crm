@@ -5,11 +5,13 @@
 
 x-database-url: &database-url postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
 
+# Container logs go to the server journal (journald): they outlive the container, so deploys and rollbacks
+# do not lose old lines. The system limits the journal size and deletes the oldest lines itself.
+# tag makes the journal identifier equal to the container name: journalctl -t prod-app-1
 x-logging: &logging
-  driver: json-file
+  driver: journald
   options:
-    max-size: "10m"
-    max-file: "3"
+    tag: "{{.Name}}"
 
 # Every container made from the app image; each service lists its own settings below
 x-app: &app

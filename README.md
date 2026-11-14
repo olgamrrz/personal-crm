@@ -282,12 +282,37 @@ ssh -t crm bash /opt/crm/staging/restore.sh staging
 | Команда | Что делает |
 | --- | --- |
 | `ssh crm docker ps` | показывает, что запущено |
-| `ssh crm docker logs --tail 100 prod-app-1` | последние логи приложения прода; у стенда - `staging-app-1` |
+| `ssh crm journalctl -t prod-app-1 -n 100` | последние логи приложения прода; у стенда - `staging-app-1`. Подробнее - в «Как читать логи» ниже |
 | `ssh crm cat /opt/crm/prod/previous-image` | какая версия была до текущей; у стенда - `/opt/crm/staging/previous-image` |
 | `ssh crm bash /opt/crm/prod/deploy.sh prod SHA` | запасной путь, если GitHub Actions недоступен: вручную выкатывает версию SHA на прод (проверка тест-стенда здесь не работает, SHA выбираете сами); миграции при этом не откатываются, бэкап снимается как при обычной выкатке. Вместо SHA можно написать `previous` - откат на предыдущую версию. Для стенда: `ssh crm bash /opt/crm/staging/deploy.sh staging SHA`, без бэкапа |
 | `ssh crm bash /opt/crm/prod/backup.sh` | снимает бэкап базы вручную, например перед ручной правкой на сервере; пишет, где лежит файл |
 | `ssh crm ls -l /opt/crm/prod/backups` | список бэкапов базы |
 | `ssh crm bash /opt/crm/prod/seed.sh prod` | даёт пользователю `OWNER_EMAIL` тестовые контакты; если у него уже есть контакты - ничего не делает. Для стенда: `ssh crm bash /opt/crm/staging/seed.sh staging` |
+
+### Как читать логи
+
+Логи контейнеров (приложение, база) пишутся в журнал сервера (journald). Они переживают выкатку, откат и пересоздание контейнера. Размер журнала ограничивает сама система: когда он дорастает до лимита, она удаляет самые старые строки, диск не забивается.
+
+У каждого контейнера своё имя: `prod-app-1`, `prod-db-1`, `staging-app-1`, `staging-db-1`. Команды выполняются на своём компьютере через ssh:
+
+| Команда | Что показывает |
+| --- | --- |
+| `ssh crm journalctl -t prod-app-1 -n 100 --no-pager` | последние 100 строк приложения прода; у стенда - `staging-app-1` |
+| `ssh crm journalctl -t prod-app-1 --since "1 hour ago" --no-pager` | строки за последний час (можно `"yesterday"`, `"2026-11-15 10:00"`) |
+| `ssh crm journalctl -t prod-app-1 -p err --no-pager` | только ошибки |
+| `ssh crm journalctl -t prod-db-1 -n 100 --no-pager` | последние строки базы прода; у стенда - `staging-db-1` |
+| `ssh -t crm journalctl -t prod-app-1 -f` | смотреть новые строки вживую; выйти - Ctrl+C |
+
+`docker logs prod-app-1` тоже работает, но показывает только текущий контейнер: после выкатки старые строки в нём пропадают, а в журнале остаются.
+
+Чтобы читать журнал без sudo, пользователь `crmapp` должен быть в группе `systemd-journal`. Чтобы журнал не пропадал при перезагрузке сервера, должна существовать папка `/var/log/journal`. Оба действия - один раз, от root; если команды выше говорят `No journal files were found` или `Hint: You are currently not seeing messages from other users`:
+
+```
+sudo usermod -aG systemd-journal crmapp
+sudo mkdir -p /var/log/journal && sudo systemctl restart systemd-journald
+```
+
+Логи самой выкатки (миграции, smoke) - не здесь, а в запуске Deploy staging / Deploy prod в GitHub Actions.
 
 ## Восстановление базы из бэкапа
 
@@ -348,4 +373,4 @@ ssh -t crm bash /opt/crm/staging/restore.sh staging
 
 - Restore остановился до удаления базы (не тот файл, не получилась копия, ответ не `yes`) - ничего не изменилось, приложение работает
 - Restore упал при загрузке бэкапа - приложение остановлено, база может быть пустой. Скрипт пишет команду, которой вернуть прежние данные: тот же restore с файлом `_before-restore`
-- База восстановлена, но приложение не отвечает на `/health` - смотреть логи: `ssh crm docker logs --tail 100 prod-app-1`. Сам скрипт ничего не откатывает
+- База восстановлена, но приложение не отвечает на `/health` - смотреть логи: `ssh crm journalctl -t prod-app-1 -n 100`. Сам скрипт ничего не откатывает
