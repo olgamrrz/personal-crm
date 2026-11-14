@@ -2,11 +2,14 @@
 # Backs up the prod database (docker compose project "prod") to backups/ next to this script.
 # Prod only: staging has no backups, its data is a copy of prod (see restore.sh).
 #
-# Usage: backup.sh [deploy|before-restore]
+# Usage: backup.sh [deploy|daily|before-restore]
 #   no argument     backup by hand: ssh crm bash /opt/crm/prod/backup.sh
 #                   -> backups/DATE_TIME_SHA_manual.dump, never removed automatically
 #   deploy          run by deploy.sh before migrations -> backups/DATE_TIME_SHA.dump;
-#                   only the newest KEEP_DEPLOY_BACKUPS of these stay
+#                   only the newest KEEP_BACKUPS of these stay
+#   daily           run by a systemd timer every day at 03:00 Moscow time (see install-schedule.sh)
+#                   -> backups/DATE_TIME_SHA_daily.dump; only the newest KEEP_BACKUPS of these stay.
+#                   Takes the deploy lock itself: it does not run while a deploy or restore is running
 #   before-restore  run by restore.sh before it drops the database
 #                   -> backups/DATE_TIME_SHA_before-restore.dump, never removed automatically
 #
@@ -23,16 +26,21 @@ cd "$(dirname "$0")"
 source ./common.sh
 init_env prod
 
-readonly KEEP_DEPLOY_BACKUPS=30
+# How many backups of each kind that is removed automatically (deploy, daily) stay
+readonly KEEP_BACKUPS=7
 
 kind=${1:-manual}
 case "$kind" in
   deploy) suffix="" ;;
-  manual | before-restore) suffix="_$kind" ;;
-  *) die "usage: backup.sh [deploy|before-restore]" ;;
+  daily | manual | before-restore) suffix="_$kind" ;;
+  *) die "usage: backup.sh [deploy|daily|before-restore]" ;;
 esac
 
 require_env_file
+# deploy.sh and restore.sh, which run the other kinds, hold the lock already
+if [[ "$kind" == daily ]]; then
+  take_lock
+fi
 version=$(running_app_version)
 # deploy.sh and restore.sh have set it already; any value lets compose load compose.yaml
 export APP_IMAGE=${APP_IMAGE:-$REPOSITORY:$version}
@@ -56,14 +64,13 @@ fi
 mv "$file.partial" "$file"
 log "Backup saved: $PWD/$file ($(du -h "$file" | cut -f 1))"
 
-# Keep the newest deploy backups. Only exact deploy backup names match, so manual,
-# before-restore and any other files stay. Names start with date and time: sorting by name
-# sorts by age.
-if [[ "$kind" == deploy ]]; then
+# Keep the newest backups of this kind (deploy or daily). Only exact names of this kind match, so the other
+# kinds and any other files stay. Names start with date and time: sorting by name sorts by age.
+if [[ "$kind" == deploy || "$kind" == daily ]]; then
   find "$BACKUP_DIR" -maxdepth 1 -type f -regextype posix-extended \
-    -regex '.*/[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}_([0-9a-f]{40}|unknown)\.dump' -printf '%f\n' \
+    -regex ".*/[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}_([0-9a-f]{40}|unknown)${suffix}\.dump" -printf '%f\n' \
     | sort \
-    | head --lines=-"$KEEP_DEPLOY_BACKUPS" \
+    | head --lines=-"$KEEP_BACKUPS" \
     | while read -r name; do
       rm -f -- "${BACKUP_DIR:?}/$name"
       log "Removed old backup $name"

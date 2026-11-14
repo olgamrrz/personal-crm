@@ -1,0 +1,113 @@
+# Deploy prod: started by hand with the "Run workflow" button, never by a merge.
+# Rolls out an image that already went through staging (see .github/scripts/find-tested-sha.sh), or, with
+# the "rollback" box, the version that ran on prod before the current one (the server remembers it).
+# The server side lives in deploy/: this workflow only uploads it and calls deploy.sh.
+name: Deploy prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA to deploy. Empty - the newest version that was deployed to staging successfully"
+        required: false
+        type: string
+      rollback:
+        description: "Rollback: deploy the version that was on prod before the current one (the SHA field is ignored)"
+        required: true
+        type: boolean
+        default: false
+
+env:
+  SERVER: crmapp@176.12.67.9
+  DEPLOY_DIR: /opt/crm/prod
+  APP_URL: https://app.olgamrzvcrm.ru
+
+jobs:
+  deploy-prod:
+    name: Deploy to prod
+    # The scripts come from the branch the workflow runs on: only main is allowed
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    # Shows the app link under this job on the run page and in the repo's Deployments
+    environment:
+      name: production
+      url: https://app.olgamrzvcrm.ru
+    permissions:
+      contents: read
+      # read: pull the image on the server; write: delete old versions in GHCR at the end
+      packages: write
+      # read the history of staging deploys
+      deployments: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # SHA to deploy. Rollback skips the staging check: the server knows the previous version itself
+      - name: Choose the version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_SHA: ${{ inputs.sha }}
+          ROLLBACK: ${{ inputs.rollback }}
+        run: |
+          if [[ "$ROLLBACK" == true ]]; then
+            target=previous
+            echo "Rollback: the server takes the version that was on prod before the current one" >> "$GITHUB_STEP_SUMMARY"
+          else
+            target=$(.github/scripts/find-tested-sha.sh "$INPUT_SHA")
+            echo "Version to deploy: \`$target\` (deployed to staging successfully)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # The whole deploy/ folder, so a new script there reaches the server by itself.
+      # Files that exist only on the server (.env, current-image, backups/) stay as they are;
+      # --no-overwrite-dir keeps the owner and mode of the server folder, --touch skips file times
+      - name: Upload deploy folder
+        shell: bash
+        run: |
+          tar --create --file=- --directory=deploy . \
+            | ssh -o BatchMode=yes "$SERVER" "tar --extract --file=- --directory=$DEPLOY_DIR --no-overwrite-dir --touch"
+
+      - name: Back up database, migrate, start new image, smoke /health
+        shell: bash
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ steps.version.outputs.target }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" \
+            | ssh -o BatchMode=yes "$SERVER" "bash $DEPLOY_DIR/deploy.sh --registry-user $REGISTRY_USER prod $TARGET" \
+            | tee "$RUNNER_TEMP/deploy.log"
+
+      - name: Check public address
+        run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 "$APP_URL/health"
+
+      # Which version is on prod now, as the server says; for a rollback this is the only place to see the SHA
+      - name: Write the result to the run summary
+        run: |
+          sha=$(grep --only-matching --extended-regexp 'personal-crm:[0-9a-f]{40}' "$RUNNER_TEMP/deploy.log" | tail --lines=1 | cut -d: -f2)
+          echo "Deployed to prod: \`$sha\` ($APP_URL)" >> "$GITHUB_STEP_SUMMARY"
+
+      # Only after a good deploy. Keeps the 10 newest builds; the server keeps the versions prod may roll back to
+      # A failed cleanup must not turn a good deploy red: it shows as a warning on the run page
+      - name: Delete old images in GHCR
+        continue-on-error: true
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: personal-crm
+          package-type: container
+          min-versions-to-keep: 10
+          # The action deletes only this many of the oldest versions per run (default 1)
+          num-old-versions-to-delete: 100

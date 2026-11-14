@@ -1,7 +1,7 @@
-# Push to main -> image tagged with the commit SHA -> GHCR -> deploy to staging and to prod.
+# Push to main -> image tagged with the commit SHA -> GHCR -> deploy to staging.
+# Prod is never deployed from here: only the Deploy prod workflow (deploy-prod.yml), started by hand, does that.
 # The server side lives in deploy/: this workflow only uploads it and calls deploy.sh with the environment.
-# Staging and prod are deployed independently of each other: both wait only for the build.
-name: Deploy
+name: Deploy staging
 
 on:
   push:
@@ -34,6 +34,8 @@ jobs:
         with:
           context: .
           push: true
+          # No attestation manifests: they would show up in GHCR as extra untagged versions of every build
+          provenance: false
           tags: ${{ env.IMAGE }}:${{ github.sha }}
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha
@@ -95,53 +97,3 @@ jobs:
             --retry 5 --retry-all-errors --retry-delay 3 "$APP_URL/health")
           echo "$APP_URL/health answered $code"
           test "$code" = 401
-
-  deploy-prod:
-    name: Deploy to prod
-    needs: build
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-prod
-      cancel-in-progress: false
-    # Shows the app link under this job on the run page and in the repo's Deployments
-    environment:
-      name: production
-      url: https://app.olgamrzvcrm.ru
-    permissions:
-      contents: read
-      packages: read
-    env:
-      DEPLOY_DIR: /opt/crm/prod
-      APP_URL: https://app.olgamrzvcrm.ru
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up SSH
-        env:
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-
-      # The whole deploy/ folder, so a new script there reaches the server by itself.
-      # Files that exist only on the server (.env, current-image, backups/) stay as they are;
-      # --no-overwrite-dir keeps the owner and mode of the server folder, --touch skips file times
-      - name: Upload deploy folder
-        shell: bash
-        run: |
-          tar --create --file=- --directory=deploy . \
-            | ssh -o BatchMode=yes "$SERVER" "tar --extract --file=- --directory=$DEPLOY_DIR --no-overwrite-dir --touch"
-
-      - name: Back up database, migrate, start new image, smoke /health
-        env:
-          REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          printf '%s' "$REGISTRY_TOKEN" \
-            | ssh -o BatchMode=yes "$SERVER" "bash $DEPLOY_DIR/deploy.sh --registry-user $REGISTRY_USER prod $GITHUB_SHA"
-
-      - name: Check public address
-        run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 "$APP_URL/health"

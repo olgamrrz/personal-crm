@@ -1,4 +1,4 @@
-# Shared code of deploy.sh, backup.sh and restore.sh, not run on its own.
+# Shared code of deploy.sh, backup.sh, restore.sh and install-schedule.sh, not run on its own.
 # The scripts cd into their folder (/opt/crm/prod or /opt/crm/staging on the server) and source this file,
 # so the relative paths below point there. Every script calls init_env ENV first: it sets the
 # environment ("prod" or "staging") and checks that the folder belongs to it. compose needs APP_IMAGE
@@ -75,13 +75,33 @@ running_app_version() {
   fi
 }
 
-# Images that must stay on the server: the current and the previous one of both environments.
-# Staging and prod share one image name, so a cleanup in one must not remove what the other can roll back to.
+# Images that must stay on the server whatever their age: the two last versions of prod (the current one
+# and the one to roll back to) and the current version of staging. Staging and prod share one image name,
+# so a cleanup started by prod must not remove what staging runs.
 keep_images() {
   local file
-  for file in ../prod/current-image ../prod/previous-image ../staging/current-image ../staging/previous-image; do
+  for file in ../prod/current-image ../prod/previous-image ../staging/current-image; do
     if [[ -s "$file" ]]; then
       cat "$file"
+    fi
+  done
+}
+
+# Removes images of the app older than MAX_IMAGE_AGE_DAYS, except keep_images. The age is the build date
+# of the image. An image of a running container cannot be removed: docker refuses, and that is only a warning.
+# Run after a good prod deploy, once current-image and previous-image of prod are written.
+readonly MAX_IMAGE_AGE_DAYS=14
+remove_old_images() {
+  local keep oldest image created
+  keep=$(keep_images)
+  oldest=$(date --date "$MAX_IMAGE_AGE_DAYS days ago" '+%s')
+  docker image ls "$REPOSITORY" --format '{{.Repository}}:{{.Tag}}' | while read -r image; do
+    [[ "$image" != "$REPOSITORY:<none>" ]] || continue
+    grep --quiet --line-regexp --fixed-strings -- "$image" <<<"$keep" && continue
+    created=$(docker image inspect --format '{{.Created}}' "$image")
+    if [[ "$(date --date "$created" '+%s')" -lt "$oldest" ]]; then
+      log "Removing old image $image (built $created)"
+      docker image rm "$image" >/dev/null || log "WARNING: could not remove $image"
     fi
   done
 }
