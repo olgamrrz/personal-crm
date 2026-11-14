@@ -3,8 +3,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { addNote, deleteContact, markContacted, setContactFrequency } from "@/app/actions";
+import {
+  addNote,
+  deleteContact,
+  markContacted,
+  setContactBirthday,
+  setContactFrequency,
+} from "@/app/actions";
 import { BackLink } from "@/components/back-link";
+import { BirthdayRow } from "@/components/birthday-row";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { ContactGroupsRow } from "@/components/contact-groups-row";
 import { DeleteContactButton } from "@/components/delete-contact-button";
@@ -12,6 +19,7 @@ import { DetailRow } from "@/components/detail-row";
 import { KeepInTouchRows } from "@/components/keep-in-touch-rows";
 import { NoteForm } from "@/components/note-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatBirthday } from "@/lib/birthday";
 import { getContact, getContactGroupIds, getLastContact, listNotes, parseContactId } from "@/lib/contacts";
 import { formatDateTime, formatLastConversation, phoneHref, pluralize } from "@/lib/format";
 import { listGroups } from "@/lib/groups";
@@ -49,6 +57,7 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
 
   const addNoteToContact = addNote.bind(null, contact.id);
   const deleteThisContact = deleteContact.bind(null, contact.id);
+  const setThisContactBirthday = setContactBirthday.bind(null, contact.id);
   const setThisContactFrequency = setContactFrequency.bind(null, contact.id);
   const markThisContacted = markContacted.bind(null, contact.id);
 
@@ -81,6 +90,18 @@ async function ContactDetails({ params }: Pick<PageProps<"/contacts/[id]">, "par
                 </a>
               )}
             </DetailRow>
+            <BirthdayRow
+              birthday={
+                contact.birthdayDay !== null && contact.birthdayMonth !== null
+                  ? formatBirthday({
+                      day: contact.birthdayDay,
+                      month: contact.birthdayMonth,
+                      year: contact.birthdayYear,
+                    })
+                  : ""
+              }
+              setBirthdayAction={setThisContactBirthday}
+            />
             <ContactGroupsRow
               contactId={contact.id}
               groups={groups.map(({ id, name }) => ({ id, name }))}

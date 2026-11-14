@@ -148,7 +148,16 @@ describe("listContacts", () => {
 });
 
 describe("insertContact", () => {
-  const ivan = { name: "Иван Петров", about: "тренер", howWeMet: null, phone: null, email: null };
+  const ivan = {
+    name: "Иван Петров",
+    about: "тренер",
+    howWeMet: null,
+    phone: null,
+    email: null,
+    birthdayDay: null,
+    birthdayMonth: null,
+    birthdayYear: null,
+  };
 
   it("saves the contact with its fields and returns its id", async () => {
     const created = await insertContact(owner.id, ivan, []);
@@ -398,7 +407,16 @@ describe("other people's data when writing", () => {
 
     const created = await insertContact(
       other.id,
-      { name: "Борис Иванов", about: null, howWeMet: null, phone: null, email: null },
+      {
+        name: "Борис Иванов",
+        about: null,
+        howWeMet: null,
+        phone: null,
+        email: null,
+        birthdayDay: null,
+        birthdayMonth: null,
+        birthdayYear: null,
+      },
       [mine.id, theirs.id],
     );
 

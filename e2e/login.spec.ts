@@ -102,9 +102,19 @@ test.describe("asking for a link", () => {
 
 // Who the browser is signed in as, as the server sees it; null when nobody
 async function signedInAs(page: Page) {
-  const response = await page.request.get("/api/auth/get-session");
-  const session = (await response.json()) as { user?: { email: string } } | null;
-  return session?.user?.email ?? null;
+  // Better Auth counts the calls to its routes by IP (100, and the count restarts only after 10 quiet seconds),
+  // and the app itself calls get-session on every page. All the tests share one IP, so in a long run this call
+  // can be refused with 429; it is made again when the server says it may be.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await page.request.get("/api/auth/get-session");
+    if (response.status() === 429) {
+      await page.waitForTimeout((Number(response.headers()["x-retry-after"]) || 10) * 1000);
+      continue;
+    }
+    const session = (await response.json()) as { user?: { email: string } } | null;
+    return session?.user?.email ?? null;
+  }
+  throw new Error("get-session is still refused with 429 after waiting");
 }
 
 test.describe("opening the link", () => {

@@ -8,7 +8,8 @@ import { GroupFilter } from "@/components/group-filter";
 import { OverdueContacts } from "@/components/overdue-contacts";
 import { SearchBox } from "@/components/search-box";
 import { buttonVariants } from "@/components/ui/button";
-import { listContacts, listOverdueContacts, parseContactId } from "@/lib/contacts";
+import { UpcomingBirthdays } from "@/components/upcoming-birthdays";
+import { listContacts, listOverdueContacts, listUpcomingBirthdays, parseContactId } from "@/lib/contacts";
 import { pluralize } from "@/lib/format";
 import { listGroups } from "@/lib/groups";
 import { requireUser } from "@/lib/session";
@@ -63,11 +64,12 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
 
   const groupId = parseId(firstValue(params.group));
 
-  // Loaded together, so the block and the list appear at once and the search box does not jump.
-  // Neither the search nor the group filters the block.
-  const [contacts, overdueContacts, allGroups] = await Promise.all([
+  // Loaded together, so the blocks and the list appear at once and the search box does not jump.
+  // Neither the search nor the group filters the blocks.
+  const [contacts, overdueContacts, upcomingBirthdays, allGroups] = await Promise.all([
     listContacts(user.id, query, groupId ?? undefined),
     listOverdueContacts(user.id),
+    listUpcomingBirthdays(user.id),
     listGroups(user.id),
   ]);
   const groups = allGroups.map(({ id, name }) => ({ id, name }));
@@ -78,6 +80,8 @@ async function Contacts({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
   return (
     <div className="space-y-4">
       <OverdueContacts contacts={overdueContacts} />
+
+      <UpcomingBirthdays birthdays={upcomingBirthdays} />
 
       <SearchBox defaultValue={query} group={selectedGroup?.id} />
 

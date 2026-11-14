@@ -18,7 +18,7 @@ const ivan = {
   howWeMet: "на конференции в Казани",
   phone: "+7 900 123-45-67",
   email: "ivan@example.com",
-} satisfies ContactInput;
+};
 
 // What a log line would show: the whole error with every nested cause
 function printed(value: unknown) {
@@ -44,7 +44,19 @@ async function failure(query: PromiseLike<unknown>): Promise<Error & { digest?: 
 // A real failed save: the database rejects the row, and Postgres describes the row in the error
 async function failedContactSave() {
   const owner = await makeUser();
-  return failure(insertContact(owner.id, { ...ivan, contactFrequency: "daily" } as ContactInput, []));
+  return failure(
+    insertContact(
+      owner.id,
+      {
+        ...ivan,
+        birthdayDay: null,
+        birthdayMonth: null,
+        birthdayYear: null,
+        contactFrequency: "daily",
+      } as ContactInput,
+      [],
+    ),
+  );
 }
 
 describe("redactDatabaseError", () => {

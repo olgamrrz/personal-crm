@@ -8,7 +8,7 @@ import { eq, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { contacts, notes, sessions, users, verifications } from "@/db/schema";
+import { contactGroups, contacts, groups, notes, sessions, users, verifications } from "@/db/schema";
 import type { ContactFrequency } from "@/lib/contact-frequency";
 
 import { E2E_DATABASE_SUFFIX, getTestDatabase } from "../test/database.mts";
@@ -36,13 +36,20 @@ export function insertContacts(ownerId: string, names: string[]) {
   });
 }
 
+export type BirthdayDate = { day: number; month: number; year?: number | null };
+
 // One contact with a keep-in-touch history, returns its id. With `talkedAt` the contact has a note written
 // then, and the frequency was chosen at that moment too; without it the frequency has just been chosen.
 // The app counts from the database clock, so tests give moments counted back from now.
+// With `birthday` the contact has that day of birth; the year may be left out.
 export function insertContact(
   ownerId: string,
   name: string,
-  { frequency = null, talkedAt }: { frequency?: ContactFrequency | null; talkedAt?: Date } = {},
+  {
+    frequency = null,
+    talkedAt,
+    birthday,
+  }: { frequency?: ContactFrequency | null; talkedAt?: Date; birthday?: BirthdayDate } = {},
 ) {
   return withDatabase(async (client) => {
     const db = drizzle(client);
@@ -53,12 +60,33 @@ export function insertContact(
         name,
         contactFrequency: frequency,
         contactFrequencySetAt: frequency ? (talkedAt ?? new Date()) : null,
+        birthdayDay: birthday?.day ?? null,
+        birthdayMonth: birthday?.month ?? null,
+        birthdayYear: birthday?.year ?? null,
       })
       .returning({ id: contacts.id });
     if (talkedAt) {
       await db.insert(notes).values({ contactId: contact.id, body: "Созвонились", createdAt: talkedAt });
     }
     return contact.id;
+  });
+}
+
+// A group of this person, returns its id
+export function insertGroup(ownerId: string, name: string) {
+  return withDatabase(async (client) => {
+    const [group] = await drizzle(client)
+      .insert(groups)
+      .values({ ownerId, name })
+      .returning({ id: groups.id });
+    return group.id;
+  });
+}
+
+// Puts a contact into a group (both are of the same person)
+export function addToGroup(contactId: number, groupId: number) {
+  return withDatabase(async (client) => {
+    await drizzle(client).insert(contactGroups).values({ contactId, groupId });
   });
 }
 
