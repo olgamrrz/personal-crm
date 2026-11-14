@@ -1,10 +1,10 @@
 # Shared code of deploy.sh, backup.sh and restore.sh, not run on its own.
-# The scripts cd into their folder (/opt/crm/prod on the server) and source this file,
-# so the relative paths below point there. compose needs APP_IMAGE exported first:
-# deploy/compose.yaml refuses to load without it.
+# The scripts cd into their folder (/opt/crm/prod or /opt/crm/staging on the server) and source this file,
+# so the relative paths below point there. Every script calls init_env ENV first: it sets the
+# environment ("prod" or "staging") and checks that the folder belongs to it. compose needs APP_IMAGE
+# exported first: deploy/compose.yaml refuses to load without it.
 
 readonly REPOSITORY=ghcr.io/olgamrrz/personal-crm
-readonly HEALTH_URL=http://127.0.0.1:3000/health
 # shellcheck disable=SC2034 # used by backup.sh and restore.sh
 readonly BACKUP_DIR=backups
 
@@ -13,27 +13,54 @@ die() {
   log "ERROR: $*"
   exit 1
 }
-compose() { docker compose -p prod "$@"; }
+
+# Sets DEPLOY_ENV, the host port of the app, its health address and the memory limits of the containers
+# (0 - no limit). The same image runs in both environments; only these settings differ.
+init_env() {
+  DEPLOY_ENV=${1:-}
+  case "$DEPLOY_ENV" in
+    prod)
+      APP_PORT=3000
+      APP_MEM_LIMIT=0
+      DB_MEM_LIMIT=0
+      ;;
+    staging)
+      APP_PORT=3001
+      APP_MEM_LIMIT=384m
+      DB_MEM_LIMIT=256m
+      ;;
+    *) die "environment must be prod or staging, got '$DEPLOY_ENV'" ;;
+  esac
+  # Each environment has its own folder with its own .env, lock, backups and image history.
+  # This stops a staging deploy from running in the prod folder and the other way round.
+  [[ "$(basename "$PWD")" == "$DEPLOY_ENV" ]] \
+    || die "environment $DEPLOY_ENV must run from a folder named $DEPLOY_ENV, not $PWD"
+  HEALTH_URL=http://127.0.0.1:$APP_PORT/health
+  export APP_PORT APP_MEM_LIMIT DB_MEM_LIMIT
+}
+
+compose() { docker compose -p "$DEPLOY_ENV" "$@"; }
 
 require_env_file() {
   [[ -f .env ]] || die "$PWD/.env not found, fill it in from .env.example"
   chmod 600 .env
 }
 
-# One deploy or restore at a time: auto-merge can start a deploy while restore.sh waits for "yes".
+# One deploy or restore at a time in an environment: auto-merge can start a deploy while restore.sh waits for "yes".
+# The lock file is in the folder of the environment, so staging and prod do not wait for each other.
 # The lock is released when the script exits.
 take_lock() {
   exec 9>.lock
-  flock --nonblock 9 || die "another deploy or restore is running on this server, try again when it ends"
+  flock --nonblock 9 || die "another deploy or restore is running in $DEPLOY_ENV, try again when it ends"
 }
 
-# Commit SHA of the app version on this server, or "unknown". The image of the existing app
+# Commit SHA of the app version in this environment, or "unknown". The image of the existing app
 # container comes first: after a deploy with a failed smoke test it is newer than current-image,
 # and the database already has its migrations. Without a container - current-image.
 running_app_version() {
   local container image=""
   container=$(docker ps --all --quiet \
-    --filter label=com.docker.compose.project=prod \
+    --filter "label=com.docker.compose.project=$DEPLOY_ENV" \
     --filter label=com.docker.compose.service=app | head --lines=1)
   if [[ -n "$container" ]]; then
     image=$(docker inspect --format '{{.Config.Image}}' "$container" 2>/dev/null || true)
@@ -46,6 +73,17 @@ running_app_version() {
   else
     printf 'unknown\n'
   fi
+}
+
+# Images that must stay on the server: the current and the previous one of both environments.
+# Staging and prod share one image name, so a cleanup in one must not remove what the other can roll back to.
+keep_images() {
+  local file
+  for file in ../prod/current-image ../prod/previous-image ../staging/current-image ../staging/previous-image; do
+    if [[ -s "$file" ]]; then
+      cat "$file"
+    fi
+  done
 }
 
 # The app has to answer 200 on /health within a minute

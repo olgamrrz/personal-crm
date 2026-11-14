@@ -1,6 +1,7 @@
-# Production on the server: docker compose project "prod" in /opt/crm/prod.
-# GitHub Actions uploads the whole deploy/ folder there; .env next to it holds the settings
-# (see .env.example). APP_IMAGE is set by deploy.sh and restore.sh.
+# One file for both environments on the server: docker compose project "prod" in /opt/crm/prod and
+# "staging" in /opt/crm/staging. GitHub Actions uploads the whole deploy/ folder to each; .env next to it
+# holds the settings (see .env.example), different for each environment.
+# APP_IMAGE, APP_PORT, APP_MEM_LIMIT and DB_MEM_LIMIT are set by deploy.sh and restore.sh (init_env in common.sh).
 
 x-database-url: &database-url postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
 
@@ -32,6 +33,7 @@ services:
     volumes:
       # Postgres 18+ images keep data under /var/lib/postgresql/<major>/docker
       - postgres_data:/var/lib/postgresql
+    mem_limit: ${DB_MEM_LIMIT:?DB_MEM_LIMIT is not set, run through deploy.sh}
     healthcheck:
       test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
@@ -53,11 +55,13 @@ services:
       SMTP_USER: ${SMTP_USER:?SMTP_USER is not set in .env}
       SMTP_PASSWORD: ${SMTP_PASSWORD:?SMTP_PASSWORD is not set in .env}
       MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is not set in .env}
+    mem_limit: ${APP_MEM_LIMIT:?APP_MEM_LIMIT is not set, run through deploy.sh}
     ports:
-      # Localhost only: nginx on this server proxies app.olgamrzvcrm.ru here
-      - "127.0.0.1:3000:3000"
+      # Localhost only: nginx on this server proxies here: app.olgamrzvcrm.ru to prod (3000),
+      # test-app.olgamrzvcrm.ru to staging (3001)
+      - "127.0.0.1:${APP_PORT:?APP_PORT is not set, run through deploy.sh}:3000"
 
-  # One-off containers from the app image: docker compose -p prod run --rm migrate|seed
+  # One-off containers from the app image: docker compose -p prod run --rm migrate|seed (-p staging on staging)
   # OWNER_EMAIL: whose the data is that exists before sign-in (the migration 0004_owners) and who gets demo data
   migrate:
     <<: *app

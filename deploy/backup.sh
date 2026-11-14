@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Backs up the prod database (docker compose project "prod") to backups/ next to this script.
+# Prod only: staging has no backups, its data is a copy of prod (see restore.sh).
 #
 # Usage: backup.sh [deploy|before-restore]
 #   no argument     backup by hand: ssh crm bash /opt/crm/prod/backup.sh
@@ -20,6 +21,7 @@ exec 3>&1 1>&2
 cd "$(dirname "$0")"
 # shellcheck source=deploy/common.sh
 source ./common.sh
+init_env prod
 
 readonly KEEP_DEPLOY_BACKUPS=30
 
